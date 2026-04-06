@@ -125,7 +125,6 @@ const hotspots = {
 
 let latestState = null;
 let latestConfig = null;
-let configDirty = false;
 let lastRenderedVisualKey = "";
 let lastRenderedPopupKey = "";
 let selectedHotspotId = null;
@@ -166,13 +165,6 @@ function showToast(message) {
   }, 2600);
 }
 
-function getActionLabel(option) {
-  return t(option.labelKey);
-}
-
-function getHotspotLabel(hotspot) {
-  return t(hotspot.labelKey);
-}
 
 function translateStatusValue(status) {
   const normalized = String(status || "").toLowerCase();
@@ -262,13 +254,6 @@ function getServerConfig(config) {
   };
 }
 
-function getEffectiveMouseConfig(side) {
-  return getMouseConfig(latestConfig || {}, side);
-}
-
-function getEffectiveServerConfig() {
-  return getServerConfig(latestConfig || {});
-}
 
 function buildLocalUrl(port) {
   const host = window.location.hostname || "127.0.0.1";
@@ -276,19 +261,10 @@ function buildLocalUrl(port) {
 }
 
 function buildBrowserConfig() {
-  const base = structuredClone(latestConfig || {});
-  base.mouse = {
-    left: getEffectiveMouseConfig("left"),
-    right: getEffectiveMouseConfig("right")
-  };
-  base.server = getEffectiveServerConfig();
-  base.sticks = {
-    left: getStickConfig(base, "left"),
-    right: getStickConfig(base, "right")
-  };
-  delete base.leftStick;
-  delete base.rightStick;
-  return base;
+  const config = structuredClone(latestConfig || {});
+  delete config.leftStick;
+  delete config.rightStick;
+  return config;
 }
 
 async function saveAndApplyBrowserConfig(config) {
@@ -337,7 +313,6 @@ function normalizeConfig(config) {
 
 function applyConfigToUi(config) {
   latestConfig = normalizeConfig(config);
-  configDirty = true;
   lastRenderedVisualKey = "";
   lastRenderedPopupKey = "";
   renderInteractiveMapper(true);
@@ -391,10 +366,10 @@ function buildPopupRenderKey() {
     docked: dockedEditorMedia.matches,
     selectedHotspotId,
     mouse: {
-      left: getEffectiveMouseConfig("left"),
-      right: getEffectiveMouseConfig("right")
+      left: getMouseConfig(latestConfig || {}, "left"),
+      right: getMouseConfig(latestConfig || {}, "right")
     },
-    server: getEffectiveServerConfig(),
+    server: getServerConfig(latestConfig || {}),
     mapping: config.mapping,
     sticks: {
       left: getStickConfig(config, "left"),
@@ -416,12 +391,8 @@ function findHotspot(id = selectedHotspotId) {
   return [...hotspots.left, ...hotspots.right].find((item) => item.id === id) || null;
 }
 
-function useDockedEditor() {
-  return dockedEditorMedia.matches;
-}
-
 function getActiveEditorUi() {
-  if (useDockedEditor()) {
+  if (dockedEditorMedia.matches) {
     return {
       isDocked: true,
       kicker: ui.dockEditorKicker,
@@ -483,7 +454,7 @@ function makeActionBtn(className, text) {
 
 function createHotspotElement(hotspot, config) {
   const button = document.createElement("button");
-  const hotspotLabel = getHotspotLabel(hotspot);
+  const hotspotLabel = t(hotspot.labelKey);
   button.type = "button";
   button.className = "hotspot";
   button.dataset.id = hotspot.id;
@@ -596,7 +567,7 @@ function createActionEditor(currentValue, onChange) {
   actionOptions.forEach((option) => {
     const node = document.createElement("option");
     node.value = option.value;
-    node.textContent = getActionLabel(option);
+    node.textContent = t(option.labelKey);
     if ((!currentIsCustom && currentValue === option.value) || (currentIsCustom && option.value === "key_custom")) {
       node.selected = true;
     }
@@ -609,30 +580,30 @@ function createActionEditor(currentValue, onChange) {
   keyInput.placeholder = t("editor.customKeyPlaceholder");
   keyInput.value = currentIsCustom ? currentValue.slice("key_custom:".length) : "";
 
-  select.addEventListener("change", async () => {
+  select.addEventListener("change", () => {
     if (select.value === "key_custom") {
       if (keyInput.value.trim()) {
-        await onChange(`key_custom:${keyInput.value.trim()}`);
+        onChange(`key_custom:${keyInput.value.trim()}`);
       }
       return;
     }
 
     keyInput.value = "";
-    await onChange(select.value);
+    onChange(select.value);
   });
 
-  keyInput.addEventListener("change", async () => {
+  keyInput.addEventListener("change", () => {
     const trimmed = keyInput.value.trim();
     if (!trimmed) {
       if (select.value === "key_custom") {
         select.value = "none";
-        await onChange("none");
+        onChange("none");
       }
       return;
     }
 
     select.value = "key_custom";
-    await onChange(`key_custom:${trimmed}`);
+    onChange(`key_custom:${trimmed}`);
   });
 
   wrapper.append(select, keyInput);
@@ -650,7 +621,6 @@ function makeButtonDraftPatch(side, buttonId, action) {
     latestConfig.mapping[side] = {};
   }
   latestConfig.mapping[side][buttonId] = action;
-  configDirty = true;
 }
 
 function createButtonEditor(hotspot) {
@@ -677,7 +647,7 @@ function createButtonEditor(hotspot) {
   card.append(meta, row);
   return {
     kicker: hotspot.side === "left" ? t("buttonEditor.kickerLeft") : t("buttonEditor.kickerRight"),
-    title: getHotspotLabel(hotspot),
+    title: t(hotspot.labelKey),
     nodes: [card]
   };
 }
@@ -703,7 +673,6 @@ function makeStickDraftPatch(side, patch) {
     latestConfig.sticks = { left: {}, right: {} };
   }
   latestConfig.sticks[side] = nextConfig;
-  configDirty = true;
 }
 
 function createStickEditor(hotspot) {
@@ -771,7 +740,7 @@ function createStickEditor(hotspot) {
 
   return {
     kicker: hotspot.runtimeId === "left" ? t("stickEditor.kickerLeft") : t("stickEditor.kickerRight"),
-    title: getHotspotLabel(hotspot),
+    title: t(hotspot.labelKey),
     nodes: [infoCard, card]
   };
 }
@@ -784,10 +753,9 @@ function makeMouseDraftPatch(side, patch) {
     latestConfig.mouse = { left: {}, right: {} };
   }
   latestConfig.mouse[side] = {
-    ...getEffectiveMouseConfig(side),
+    ...getMouseConfig(latestConfig || {}, side),
     ...patch
   };
-  configDirty = true;
 }
 
 function makeServerDraftPatch(patch) {
@@ -795,10 +763,9 @@ function makeServerDraftPatch(patch) {
     return;
   }
   latestConfig.server = {
-    ...getEffectiveServerConfig(),
+    ...getServerConfig(latestConfig || {}),
     ...patch
   };
-  configDirty = true;
 }
 
 function createMouseControl(labelText, input, valueNode) {
@@ -813,7 +780,7 @@ function createMouseControl(labelText, input, valueNode) {
 }
 
 function createMouseEditor(hotspot) {
-  const mouseConfig = getEffectiveMouseConfig(hotspot.runtimeId);
+  const mouseConfig = getMouseConfig(latestConfig || {}, hotspot.runtimeId);
   const isLeft = hotspot.runtimeId === "left";
 
   const infoCard = document.createElement("div");
@@ -861,24 +828,19 @@ function createMouseEditor(hotspot) {
       makeMouseDraftPatch(hotspot.runtimeId, { [field.key]: Number(input.value) });
     });
 
-    input.addEventListener("change", () => {
-      value.textContent = field.format(input.value);
-      makeMouseDraftPatch(hotspot.runtimeId, { [field.key]: Number(input.value) });
-    });
-
     grid.appendChild(createMouseControl(t(field.labelKey), input, value));
   });
 
   card.appendChild(grid);
   return {
     kicker: t(isLeft ? "mouseEditor.kickerLeft" : "mouseEditor.kickerRight"),
-    title: getHotspotLabel(hotspot),
+    title: t(hotspot.labelKey),
     nodes: [infoCard, card]
   };
 }
 
 function createServerEditor() {
-  const serverConfig = getEffectiveServerConfig();
+  const serverConfig = getServerConfig(latestConfig || {});
 
   const infoCard = document.createElement("div");
   infoCard.className = "editor-card";
@@ -915,11 +877,8 @@ function createServerEditor() {
   };
 }
 
-function updateLocalizedStateText(forceConfigRender = false) {
+function updateStateDisplay() {
   if (!latestState) {
-    if (!latestConfig) {
-      setDockPlaceholder();
-    }
     return;
   }
 
@@ -932,12 +891,6 @@ function updateLocalizedStateText(forceConfigRender = false) {
   ui.leftStats.textContent = formatControllerStats(latestState.left);
   ui.rightStats.textContent = formatControllerStats(latestState.right);
   ui.mouseStats.textContent = formatMouseStats(latestState.mouseStats);
-  if (forceConfigRender) {
-    lastRenderedVisualKey = "";
-    lastRenderedPopupKey = "";
-  }
-  renderInteractiveMapper(forceConfigRender);
-  renderEditor(forceConfigRender);
 }
 
 function createEditorDescriptor(hotspot) {
@@ -964,11 +917,8 @@ function renderEditor(force = false) {
     return;
   }
 
-  const editorUi = getActiveEditorUi();
-
   const hotspot = findHotspot();
-  const descriptor = createEditorDescriptor(hotspot);
-  if (!descriptor) {
+  if (!hotspot) {
     ui.editorModal.classList.add("hidden");
     ui.editorModal.setAttribute("aria-hidden", "true");
     setDockPlaceholder();
@@ -981,6 +931,10 @@ function renderEditor(force = false) {
     return;
   }
 
+  const descriptor = createEditorDescriptor(hotspot);
+  if (!descriptor) return;
+
+  const editorUi = getActiveEditorUi();
   if (editorUi.isDocked) {
     ui.editorModal.classList.add("hidden");
     ui.editorModal.setAttribute("aria-hidden", "true");
@@ -1012,13 +966,12 @@ function closeEditor() {
 
 function renderState(snapshot) {
   latestState = snapshot;
-  updateLocalizedStateText();
+  updateStateDisplay();
 }
 
 async function refreshConfig() {
   const config = await api("/api/config");
   latestConfig = normalizeConfig(config);
-  configDirty = false;
   lastRenderedVisualKey = "";
   lastRenderedPopupKey = "";
   renderInteractiveMapper(true);
@@ -1124,7 +1077,9 @@ async function boot() {
   applyStaticTranslations();
   onLanguageChange(() => {
     applyStaticTranslations();
-    updateLocalizedStateText(true);
+    updateStateDisplay();
+    renderInteractiveMapper(true);
+    renderEditor(true);
   });
   bindActions();
   await refreshConfig();
