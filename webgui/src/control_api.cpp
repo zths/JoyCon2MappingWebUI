@@ -279,15 +279,21 @@ void ControlApiServer::HandleClient(uintptr_t clientSocketValue) {
         }
 
         auto config = runtime_.CurrentConfig();
-        config.mouse.enabled = requestBody.value("enabled", config.mouse.enabled);
-        config.mouse.baseSensitivity = requestBody.value("baseSensitivity", config.mouse.baseSensitivity);
-        config.mouse.acceleration = requestBody.value("acceleration", config.mouse.acceleration);
-        config.mouse.exponent = requestBody.value("exponent", config.mouse.exponent);
-        config.mouse.maxGain = requestBody.value("maxGain", config.mouse.maxGain);
-        config.mouse.distanceThreshold = static_cast<uint8_t>(
-            std::clamp(requestBody.value("distanceThreshold", static_cast<int>(config.mouse.distanceThreshold)), 0, 12));
-        runtime_.SetMouseSettings(config.mouse);
-        response.body = json{ { "ok", true } }.dump();
+        const std::string side = requestBody.value("side", "");
+        if (side != "left" && side != "right") {
+            response = JsonError(400, "Invalid mouse payload.");
+        } else {
+            auto settings = (side == "left") ? config.mouse.left : config.mouse.right;
+            settings.enabled = requestBody.value("enabled", settings.enabled);
+            settings.baseSensitivity = requestBody.value("baseSensitivity", settings.baseSensitivity);
+            settings.acceleration = requestBody.value("acceleration", settings.acceleration);
+            settings.exponent = requestBody.value("exponent", settings.exponent);
+            settings.maxGain = requestBody.value("maxGain", settings.maxGain);
+            settings.distanceThreshold = static_cast<uint8_t>(
+                std::clamp(requestBody.value("distanceThreshold", static_cast<int>(settings.distanceThreshold)), 0, 12));
+            runtime_.SetMouseSettings(side == "left" ? JoyConSide::Left : JoyConSide::Right, settings);
+            response.body = json{ { "ok", true } }.dump();
+        }
     } else if (method == "POST" && path == "/api/settings/mapping") {
         json requestBody;
         if (!TryParseJsonBody(body, response, requestBody)) {
@@ -318,8 +324,21 @@ void ControlApiServer::HandleClient(uintptr_t clientSocketValue) {
             response = JsonError(400, "Invalid stick payload.");
         } else {
             auto config = runtime_.CurrentConfig();
-            auto mapping = (side == "left") ? config.leftStick : config.rightStick;
+            auto mapping = (side == "left") ? config.sticks.left : config.sticks.right;
             mapping.deadzone = std::clamp(requestBody.value("deadzone", mapping.deadzone), 0, 32767);
+            mapping.hysteresis = std::clamp(requestBody.value("hysteresis", mapping.hysteresis), 0, 32767);
+            mapping.diagonalUnlockRadius = std::clamp(
+                requestBody.value("diagonalUnlockRadius", requestBody.value("cardinalLockRadius", mapping.diagonalUnlockRadius)),
+                mapping.deadzone,
+                32767);
+            mapping.fourWayHysteresisDegrees = std::clamp(
+                requestBody.value("fourWayHysteresisDegrees", mapping.fourWayHysteresisDegrees),
+                0.0,
+                45.0);
+            mapping.eightWayHysteresisDegrees = std::clamp(
+                requestBody.value("eightWayHysteresisDegrees", mapping.eightWayHysteresisDegrees),
+                0.0,
+                22.5);
             mapping.up = requestBody.value("up", mapping.up);
             mapping.down = requestBody.value("down", mapping.down);
             mapping.left = requestBody.value("left", mapping.left);

@@ -251,11 +251,12 @@ DecodedInputState DecodeJoyConReport(
             state.buttons |= BUTTON_R_THUMB;
         }
 
-        const auto [opticalX, opticalY] = GetRawOpticalMouse(buffer);
-        state.opticalMouse = { opticalX, opticalY };
-        if (buffer.size() > 0x17) {
-            state.opticalDistance = buffer[0x17];
-        }
+    }
+
+    const auto [opticalX, opticalY] = GetRawOpticalMouse(buffer);
+    state.opticalMouse = { opticalX, opticalY };
+    if (buffer.size() > 0x17) {
+        state.opticalDistance = buffer[0x17];
     }
 
     DecodeTriggersAndShoulders(

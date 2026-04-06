@@ -22,11 +22,8 @@
 
 ## 界面截图
 
-### English UI
 
-![Joy-Con 2 Web GUI English](img/Joy-Con_2_Web_GUI_—_EN.png)
-
-### 中文界面
+### 界面
 
 ![Joy-Con 2 Web GUI Chinese](img/Joy-Con_2_Web_GUI_—_CHS.png)
 
@@ -86,16 +83,60 @@ cmake --build build --config Release
 
 ## 配置说明
 
-本地服务端口保存在 `config.json` 中：
+当前配置文件中的关键结构如下：
 
 ```json
 {
+  "mouse": {
+    "left": {
+      "enabled": true,
+      "baseSensitivity": 0.1,
+      "acceleration": 0.04,
+      "exponent": 0.5,
+      "maxGain": 2.5,
+      "distanceThreshold": 12
+    },
+    "right": {
+      "enabled": true,
+      "baseSensitivity": 0.1,
+      "acceleration": 0.04,
+      "exponent": 0.5,
+      "maxGain": 2.5,
+      "distanceThreshold": 12
+    }
+  },
+  "sticks": {
+    "left": {
+      "deadzone": 8000,
+      "hysteresis": 1600,
+      "diagonalUnlockRadius": 14000,
+      "fourWayHysteresisDegrees": 12.0,
+      "eightWayHysteresisDegrees": 8.0,
+      "up": "key_w",
+      "down": "key_s",
+      "left": "key_a",
+      "right": "key_d"
+    },
+    "right": {
+      "deadzone": 8000,
+      "hysteresis": 1600,
+      "diagonalUnlockRadius": 14000,
+      "fourWayHysteresisDegrees": 12.0,
+      "eightWayHysteresisDegrees": 8.0,
+      "up": "key_up",
+      "down": "key_down",
+      "left": "key_left",
+      "right": "key_right"
+    }
+  },
   "server": {
     "port": 17777
   }
 }
 ```
 
+- `mouse.left` / `mouse.right` 分别对应左右 Joy-Con 2 的光学鼠标参数。
+- `sticks.left` / `sticks.right` 分别对应左右摇杆的方向映射与判定参数。
 - 可以直接在前端修改端口，保存后页面会自动跳转到新地址。
 - 如果配置文件不存在，程序会在启动 Web 服务前先写出一份默认配置。
 - 因此即使默认端口已被占用导致启动失败，仍然可以手动编辑生成出来的配置文件，修改 `server.port` 后再重新启动。

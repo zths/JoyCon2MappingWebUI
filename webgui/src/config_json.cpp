@@ -41,9 +41,40 @@ uint16_t NormalizePort(int port, uint16_t fallback) {
     return static_cast<uint16_t>(port);
 }
 
+json MouseSettingsToJson(const MouseSettings& settings) {
+    return json{
+        { "enabled", settings.enabled },
+        { "baseSensitivity", settings.baseSensitivity },
+        { "acceleration", settings.acceleration },
+        { "exponent", settings.exponent },
+        { "maxGain", settings.maxGain },
+        { "distanceThreshold", static_cast<int>(settings.distanceThreshold) }
+    };
+}
+
+MouseSettings MouseSettingsFromJson(const json& value, const MouseSettings& fallback) {
+    MouseSettings settings = fallback;
+    if (!value.is_object()) {
+        return settings;
+    }
+
+    settings.enabled = value.value("enabled", settings.enabled);
+    settings.baseSensitivity = value.value("baseSensitivity", settings.baseSensitivity);
+    settings.acceleration = value.value("acceleration", settings.acceleration);
+    settings.exponent = value.value("exponent", settings.exponent);
+    settings.maxGain = value.value("maxGain", settings.maxGain);
+    settings.distanceThreshold = static_cast<uint8_t>(
+        std::clamp(value.value("distanceThreshold", static_cast<int>(settings.distanceThreshold)), 0, 12));
+    return settings;
+}
+
 json StickMappingToJson(const StickMapping& mapping) {
     return json{
         { "deadzone", mapping.deadzone },
+        { "hysteresis", mapping.hysteresis },
+        { "diagonalUnlockRadius", mapping.diagonalUnlockRadius },
+        { "fourWayHysteresisDegrees", mapping.fourWayHysteresisDegrees },
+        { "eightWayHysteresisDegrees", mapping.eightWayHysteresisDegrees },
         { "up", mapping.up },
         { "down", mapping.down },
         { "left", mapping.left },
@@ -58,6 +89,19 @@ StickMapping StickMappingFromJson(const json& value, const StickMapping& fallbac
     }
 
     mapping.deadzone = std::clamp(value.value("deadzone", mapping.deadzone), 0, 32767);
+    mapping.hysteresis = std::clamp(value.value("hysteresis", mapping.hysteresis), 0, 32767);
+    mapping.diagonalUnlockRadius = std::clamp(
+        value.value("diagonalUnlockRadius", value.value("cardinalLockRadius", mapping.diagonalUnlockRadius)),
+        mapping.deadzone,
+        32767);
+    mapping.fourWayHysteresisDegrees = std::clamp(
+        value.value("fourWayHysteresisDegrees", mapping.fourWayHysteresisDegrees),
+        0.0,
+        45.0);
+    mapping.eightWayHysteresisDegrees = std::clamp(
+        value.value("eightWayHysteresisDegrees", mapping.eightWayHysteresisDegrees),
+        0.0,
+        22.5);
     mapping.up = value.value("up", mapping.up);
     mapping.down = value.value("down", mapping.down);
     mapping.left = value.value("left", mapping.left);
@@ -90,20 +134,16 @@ json ControllerStateToJson(const ControllerStateSnapshot& state) {
 json ConfigToJson(const AppConfig& config) {
     return json{
         { "mouse", {
-            { "enabled", config.mouse.enabled },
-            { "baseSensitivity", config.mouse.baseSensitivity },
-            { "acceleration", config.mouse.acceleration },
-            { "exponent", config.mouse.exponent },
-            { "maxGain", config.mouse.maxGain },
-            { "distanceThreshold", static_cast<int>(config.mouse.distanceThreshold) }
+            { "left", MouseSettingsToJson(config.mouse.left) },
+            { "right", MouseSettingsToJson(config.mouse.right) }
         } },
         { "mapping", {
             { "left", config.mapping.left },
             { "right", config.mapping.right }
         } },
         { "sticks", {
-            { "left", StickMappingToJson(config.leftStick) },
-            { "right", StickMappingToJson(config.rightStick) }
+            { "left", StickMappingToJson(config.sticks.left) },
+            { "right", StickMappingToJson(config.sticks.right) }
         } },
         { "server", {
             { "port", config.server.port }
@@ -114,13 +154,8 @@ json ConfigToJson(const AppConfig& config) {
 void UpdateConfigFromJson(const json& root, AppConfig& config) {
     if (const auto mouseIt = root.find("mouse"); mouseIt != root.end() && mouseIt->is_object()) {
         const auto& mouse = *mouseIt;
-        config.mouse.enabled = mouse.value("enabled", config.mouse.enabled);
-        config.mouse.baseSensitivity = mouse.value("baseSensitivity", config.mouse.baseSensitivity);
-        config.mouse.acceleration = mouse.value("acceleration", config.mouse.acceleration);
-        config.mouse.exponent = mouse.value("exponent", config.mouse.exponent);
-        config.mouse.maxGain = mouse.value("maxGain", config.mouse.maxGain);
-        config.mouse.distanceThreshold = static_cast<uint8_t>(
-            std::clamp(mouse.value("distanceThreshold", static_cast<int>(config.mouse.distanceThreshold)), 0, 12));
+        config.mouse.left = MouseSettingsFromJson(mouse.value("left", json::object()), config.mouse.left);
+        config.mouse.right = MouseSettingsFromJson(mouse.value("right", json::object()), config.mouse.right);
     }
 
     if (const auto mappingIt = root.find("mapping"); mappingIt != root.end() && mappingIt->is_object()) {
@@ -133,8 +168,15 @@ void UpdateConfigFromJson(const json& root, AppConfig& config) {
     }
 
     if (const auto sticksIt = root.find("sticks"); sticksIt != root.end() && sticksIt->is_object()) {
-        config.leftStick = StickMappingFromJson(sticksIt->value("left", json::object()), config.leftStick);
-        config.rightStick = StickMappingFromJson(sticksIt->value("right", json::object()), config.rightStick);
+        config.sticks.left = StickMappingFromJson(sticksIt->value("left", json::object()), config.sticks.left);
+        config.sticks.right = StickMappingFromJson(sticksIt->value("right", json::object()), config.sticks.right);
+    } else {
+        if (const auto leftStickIt = root.find("leftStick"); leftStickIt != root.end()) {
+            config.sticks.left = StickMappingFromJson(*leftStickIt, config.sticks.left);
+        }
+        if (const auto rightStickIt = root.find("rightStick"); rightStickIt != root.end()) {
+            config.sticks.right = StickMappingFromJson(*rightStickIt, config.sticks.right);
+        }
     }
 
     if (const auto serverIt = root.find("server"); serverIt != root.end() && serverIt->is_object()) {

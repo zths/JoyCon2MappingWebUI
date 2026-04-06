@@ -33,6 +33,11 @@ struct MouseSettings {
     uint8_t distanceThreshold = 0x0C;
 };
 
+struct MouseConfig {
+    MouseSettings left;
+    MouseSettings right;
+};
+
 struct MappingConfig {
     std::map<std::string, std::string> left;
     std::map<std::string, std::string> right;
@@ -40,10 +45,19 @@ struct MappingConfig {
 
 struct StickMapping {
     int deadzone = 8000;
+    int hysteresis = 1600;
+    int diagonalUnlockRadius = 14000;
+    double fourWayHysteresisDegrees = 12.0;
+    double eightWayHysteresisDegrees = 8.0;
     std::string up = "none";
     std::string down = "none";
     std::string left = "none";
     std::string right = "none";
+};
+
+struct StickSettings {
+    StickMapping left;
+    StickMapping right;
 };
 
 struct ServerSettings {
@@ -51,10 +65,9 @@ struct ServerSettings {
 };
 
 struct AppConfig {
-    MouseSettings mouse;
+    MouseConfig mouse;
     MappingConfig mapping;
-    StickMapping leftStick;
-    StickMapping rightStick;
+    StickSettings sticks;
     ServerSettings server;
 };
 
@@ -99,7 +112,7 @@ public:
     void ApplyConfig(const AppConfig& config);
     AppConfig CurrentConfig() const;
 
-    void SetMouseSettings(const MouseSettings& settings);
+    void SetMouseSettings(JoyConSide side, const MouseSettings& settings);
     void SetButtonMapping(JoyConSide side, const std::string& buttonId, const std::string& action);
     void SetStickMapping(JoyConSide side, const StickMapping& mapping);
 
@@ -153,6 +166,10 @@ private:
         double intervalSumUs = 0.0;
         std::chrono::steady_clock::time_point lastPacketTime{};
         std::unordered_map<std::string, bool> previousInputs;
+        int lockedFourWayDirection = -1;
+        int activeEightWaySector = -1;
+        bool diagonalModeActive = false;
+        MouseAccumulator mouseAccumulator{};
     };
 
     void StartMouseOutputThread();
@@ -161,7 +178,7 @@ private:
     void StopKeyRepeatThread();
     void HandleDecodedState(JoyConSide side, const protocol::DecodedInputState& state);
     void HandleConnectionStatusEvent(JoyConSide side, transport::ControllerConnectionStatus status);
-    void UpdateMouseFromRightJoyCon(const protocol::DecodedInputState& state, const std::chrono::steady_clock::time_point& callbackTime);
+    void UpdateMouseFromJoyCon(ControllerSlot& slot, const std::chrono::steady_clock::time_point& callbackTime);
     void UpdateMappedButtons(ControllerSlot& slot);
     void UpdateMappedStick(ControllerSlot& slot);
     void ReleaseMappedInputs(ControllerSlot& slot);
@@ -181,7 +198,6 @@ private:
     AppConfig config_;
     ControllerSlot leftSlot_;
     ControllerSlot rightSlot_;
-    MouseAccumulator mouseAccumulator_;
     MouseStats mouseStats_;
     std::condition_variable mouseCondition_;
     std::thread mouseOutputThread_;

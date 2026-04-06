@@ -22,13 +22,10 @@ The project currently consists of two main parts:
 
 ## Screenshots
 
-### English UI
+### UI
 
 ![Joy-Con 2 Web GUI English](img/Joy-Con_2_Web_GUI_—_EN.png)
 
-### Chinese UI
-
-![Joy-Con 2 Web GUI Chinese](img/Joy-Con_2_Web_GUI_—_CHS.png)
 
 ## Project Structure
 
@@ -86,16 +83,60 @@ The local service stops when the console application exits.
 
 ## Configuration
 
-The local server port is stored in `config.json`:
+The main config structure now looks like this:
 
 ```json
 {
+  "mouse": {
+    "left": {
+      "enabled": true,
+      "baseSensitivity": 0.1,
+      "acceleration": 0.04,
+      "exponent": 0.5,
+      "maxGain": 2.5,
+      "distanceThreshold": 12
+    },
+    "right": {
+      "enabled": true,
+      "baseSensitivity": 0.1,
+      "acceleration": 0.04,
+      "exponent": 0.5,
+      "maxGain": 2.5,
+      "distanceThreshold": 12
+    }
+  },
+  "sticks": {
+    "left": {
+      "deadzone": 8000,
+      "hysteresis": 1600,
+      "diagonalUnlockRadius": 14000,
+      "fourWayHysteresisDegrees": 12.0,
+      "eightWayHysteresisDegrees": 8.0,
+      "up": "key_w",
+      "down": "key_s",
+      "left": "key_a",
+      "right": "key_d"
+    },
+    "right": {
+      "deadzone": 8000,
+      "hysteresis": 1600,
+      "diagonalUnlockRadius": 14000,
+      "fourWayHysteresisDegrees": 12.0,
+      "eightWayHysteresisDegrees": 8.0,
+      "up": "key_up",
+      "down": "key_down",
+      "left": "key_left",
+      "right": "key_right"
+    }
+  },
   "server": {
     "port": 17777
   }
 }
 ```
 
+- `mouse.left` and `mouse.right` hold the optical mouse settings for each Joy-Con 2.
+- `sticks.left` and `sticks.right` hold directional mapping and stick decision parameters.
 - You can change the port from the frontend and the page will redirect automatically after saving.
 - If the config file does not exist, the application writes a default one before starting the Web server.
 - This means that even if the default port is already in use and server startup fails, you can still edit the generated config file manually and change `server.port`.

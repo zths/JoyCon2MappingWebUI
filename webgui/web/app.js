@@ -42,6 +42,7 @@ const ui = {
   mouseStats: document.getElementById("mouseStats"),
   interactiveMapper: document.getElementById("interactiveMapper"),
   languageSelect: document.getElementById("languageSelect"),
+  serverSettingsBtn: document.getElementById("serverSettingsBtn"),
   saveConfigBtn: document.getElementById("saveConfigBtn"),
   downloadConfigBtn: document.getElementById("downloadConfigBtn"),
   loadConfigBtn: document.getElementById("loadConfigBtn"),
@@ -67,10 +68,23 @@ const stickDirectionEntries = [
 
 const defaultStickConfig = {
   deadzone: 8000,
+  hysteresis: 1600,
+  diagonalUnlockRadius: 14000,
+  fourWayHysteresisDegrees: 12,
+  eightWayHysteresisDegrees: 8,
   up: "none",
   down: "none",
   left: "none",
   right: "none"
+};
+
+const defaultMouseConfig = {
+  enabled: true,
+  baseSensitivity: 0.10,
+  acceleration: 0.040,
+  exponent: 0.50,
+  maxGain: 2.50,
+  distanceThreshold: 12
 };
 
 const defaultServerConfig = {
@@ -83,6 +97,7 @@ const hotspots = {
     { id: "left-l", side: "left", type: "button", runtimeId: "L", labelKey: "hotspots.leftL", customClass: "hotspot-arc-l" },
     { id: "left-minus", side: "left", type: "button", runtimeId: "Minus", labelKey: "hotspots.leftMinus", x: 130, y: 43, w: 32, h: 32, shape: "circle" },
     { id: "left-stick", side: "left", type: "stick", runtimeId: "left", labelKey: "hotspots.leftStick", x: 50, y: 104, w: 82, h: 82, shape: "circle" },
+    { id: "left-mouse", side: "left", type: "mouse", runtimeId: "left", labelKey: "hotspots.leftMouse", x: 182, y: 259, w: 15, h: 51, shape: "pill" },
     { id: "left-up", side: "left", type: "button", runtimeId: "Up", labelKey: "hotspots.leftUp", x: 73, y: 248, w: 36, h: 36, shape: "circle" },
     { id: "left-left", side: "left", type: "button", runtimeId: "Left", labelKey: "hotspots.leftLeft", x: 29, y: 292, w: 36, h: 36, shape: "circle" },
     { id: "left-right", side: "left", type: "button", runtimeId: "Right", labelKey: "hotspots.leftRight", x: 117, y: 292, w: 36, h: 36, shape: "circle" },
@@ -94,7 +109,7 @@ const hotspots = {
   right: [
     { id: "right-zr", side: "right", type: "button", runtimeId: "ZR", labelKey: "hotspots.rightZr", customClass: "hotspot-arc-zr" },
     { id: "right-r", side: "right", type: "button", runtimeId: "R", labelKey: "hotspots.rightR", customClass: "hotspot-arc-r" },
-    { id: "right-mouse", side: "right", type: "mouse", runtimeId: "mouse", labelKey: "hotspots.rightMouse", x: 1, y: 259, w: 15, h: 51, shape: "pill" },
+    { id: "right-mouse", side: "right", type: "mouse", runtimeId: "right", labelKey: "hotspots.rightMouse", x: 1, y: 259, w: 15, h: 51, shape: "pill" },
     { id: "right-plus", side: "right", type: "button", runtimeId: "Plus", labelKey: "hotspots.rightPlus", x: 43, y: 44, w: 32, h: 32, shape: "circle" },
     { id: "right-x", side: "right", type: "button", runtimeId: "X", labelKey: "hotspots.rightX", x: 91, y: 83, w: 36, h: 36, shape: "circle" },
     { id: "right-y", side: "right", type: "button", runtimeId: "Y", labelKey: "hotspots.rightY", x: 47, y: 127, w: 36, h: 36, shape: "circle" },
@@ -111,8 +126,8 @@ const hotspots = {
 let latestState = null;
 let lastRenderedVisualKey = "";
 let lastRenderedPopupKey = "";
-let mouseDraftDirty = false;
-let mouseDraftConfig = null;
+let mouseDraftDirty = { left: false, right: false };
+let mouseDraftConfig = { left: null, right: null };
 let serverDraftDirty = false;
 let serverDraftConfig = null;
 let selectedHotspotId = null;
@@ -212,6 +227,10 @@ function getStickConfig(config, side) {
   const source = nested || direct || {};
   return {
     deadzone: Number(source.deadzone ?? defaultStickConfig.deadzone),
+    hysteresis: Number(source.hysteresis ?? defaultStickConfig.hysteresis),
+    diagonalUnlockRadius: Number(source.diagonalUnlockRadius ?? source.cardinalLockRadius ?? defaultStickConfig.diagonalUnlockRadius),
+    fourWayHysteresisDegrees: Number(source.fourWayHysteresisDegrees ?? defaultStickConfig.fourWayHysteresisDegrees),
+    eightWayHysteresisDegrees: Number(source.eightWayHysteresisDegrees ?? defaultStickConfig.eightWayHysteresisDegrees),
     up: source.up ?? defaultStickConfig.up,
     down: source.down ?? defaultStickConfig.down,
     left: source.left ?? defaultStickConfig.left,
@@ -219,14 +238,15 @@ function getStickConfig(config, side) {
   };
 }
 
-function getMouseConfig(config) {
+function getMouseConfig(config, side) {
+  const source = config.mouse?.[side] || {};
   return {
-    enabled: config.mouse?.enabled ?? true,
-    baseSensitivity: Number(config.mouse?.baseSensitivity ?? 0.10),
-    acceleration: Number(config.mouse?.acceleration ?? 0.040),
-    exponent: Number(config.mouse?.exponent ?? 0.50),
-    maxGain: Number(config.mouse?.maxGain ?? 2.50),
-    distanceThreshold: Number(config.mouse?.distanceThreshold ?? 12)
+    enabled: source.enabled ?? defaultMouseConfig.enabled,
+    baseSensitivity: Number(source.baseSensitivity ?? defaultMouseConfig.baseSensitivity),
+    acceleration: Number(source.acceleration ?? defaultMouseConfig.acceleration),
+    exponent: Number(source.exponent ?? defaultMouseConfig.exponent),
+    maxGain: Number(source.maxGain ?? defaultMouseConfig.maxGain),
+    distanceThreshold: Number(source.distanceThreshold ?? defaultMouseConfig.distanceThreshold)
   };
 }
 
@@ -244,11 +264,11 @@ function getServerConfig(config) {
   };
 }
 
-function getEffectiveMouseConfig() {
-  if (mouseDraftDirty && mouseDraftConfig) {
-    return structuredClone(mouseDraftConfig);
+function getEffectiveMouseConfig(side) {
+  if (mouseDraftDirty[side] && mouseDraftConfig[side]) {
+    return structuredClone(mouseDraftConfig[side]);
   }
-  return getMouseConfig(latestState?.config || {});
+  return getMouseConfig(latestState?.config || {}, side);
 }
 
 function getEffectiveServerConfig() {
@@ -265,7 +285,10 @@ function buildLocalUrl(port) {
 
 function buildBrowserConfig() {
   const base = structuredClone(latestState?.config || {});
-  base.mouse = getEffectiveMouseConfig();
+  base.mouse = {
+    left: getEffectiveMouseConfig("left"),
+    right: getEffectiveMouseConfig("right")
+  };
   base.server = getEffectiveServerConfig();
   base.sticks = {
     left: getStickConfig(base, "left"),
@@ -304,7 +327,10 @@ async function saveAndApplyBrowserConfig(config) {
 function normalizeConfig(config) {
   return {
     ...config,
-    mouse: getMouseConfig(config),
+    mouse: {
+      left: getMouseConfig(config, "left"),
+      right: getMouseConfig(config, "right")
+    },
     server: getServerConfig(config),
     mapping: {
       left: config.mapping?.left || {},
@@ -323,8 +349,8 @@ function applyConfigToUi(config) {
     ...(latestState || {}),
     config: normalized
   };
-  mouseDraftDirty = false;
-  mouseDraftConfig = null;
+  mouseDraftDirty = { left: false, right: false };
+  mouseDraftConfig = { left: null, right: null };
   serverDraftDirty = false;
   serverDraftConfig = null;
   lastRenderedVisualKey = "";
@@ -377,7 +403,11 @@ function buildPopupRenderKey(config) {
   return JSON.stringify({
     docked: dockedEditorMedia.matches,
     selectedHotspotId,
-    mouse: getEffectiveMouseConfig(),
+    mouse: {
+      left: getEffectiveMouseConfig("left"),
+      right: getEffectiveMouseConfig("right")
+    },
+    server: getEffectiveServerConfig(),
     mapping: config.mapping,
     sticks: {
       left: getStickConfig(config, "left"),
@@ -389,6 +419,12 @@ function buildPopupRenderKey(config) {
 function findHotspot(id = selectedHotspotId) {
   if (!id) {
     return null;
+  }
+  if (id === "server-settings") {
+    return {
+      id,
+      type: "server"
+    };
   }
   return [...hotspots.left, ...hotspots.right].find((item) => item.id === id) || null;
 }
@@ -434,11 +470,21 @@ function isHotspotConfigured(config, hotspot) {
     return getButtonAction(config, hotspot) !== "none";
   }
   if (hotspot.type === "mouse") {
-    const mouseConfig = getMouseConfig(config);
-    return mouseConfig.enabled || mouseConfig.distanceThreshold !== 12;
+    const mouseConfig = getMouseConfig(config, hotspot.runtimeId);
+    return mouseConfig.enabled !== defaultMouseConfig.enabled
+      || mouseConfig.baseSensitivity !== defaultMouseConfig.baseSensitivity
+      || mouseConfig.acceleration !== defaultMouseConfig.acceleration
+      || mouseConfig.exponent !== defaultMouseConfig.exponent
+      || mouseConfig.maxGain !== defaultMouseConfig.maxGain
+      || mouseConfig.distanceThreshold !== defaultMouseConfig.distanceThreshold;
   }
   const stickConfig = getStickConfig(config, hotspot.runtimeId);
-  return [stickConfig.up, stickConfig.down, stickConfig.left, stickConfig.right].some((value) => value !== "none");
+  return [stickConfig.up, stickConfig.down, stickConfig.left, stickConfig.right].some((value) => value !== "none")
+    || stickConfig.deadzone !== defaultStickConfig.deadzone
+    || stickConfig.hysteresis !== defaultStickConfig.hysteresis
+    || stickConfig.diagonalUnlockRadius !== defaultStickConfig.diagonalUnlockRadius
+    || stickConfig.fourWayHysteresisDegrees !== defaultStickConfig.fourWayHysteresisDegrees
+    || stickConfig.eightWayHysteresisDegrees !== defaultStickConfig.eightWayHysteresisDegrees;
 }
 
 function makeActionBtn(className, text) {
@@ -643,6 +689,30 @@ function createButtonEditor(hotspot) {
   };
 }
 
+async function updateStickConfig(side, patch) {
+  const nextConfig = {
+    ...getStickConfig(latestState.config, side),
+    ...patch
+  };
+  nextConfig.deadzone = Math.max(0, Math.min(32767, Math.round(Number(nextConfig.deadzone) || 0)));
+  nextConfig.hysteresis = Math.max(0, Math.min(32767, Math.round(Number(nextConfig.hysteresis) || 0)));
+  nextConfig.diagonalUnlockRadius = Math.max(
+    nextConfig.deadzone,
+    Math.min(32767, Math.round(Number(nextConfig.diagonalUnlockRadius) || 0))
+  );
+  nextConfig.fourWayHysteresisDegrees = Math.max(0, Math.min(45, Number(nextConfig.fourWayHysteresisDegrees) || 0));
+  nextConfig.eightWayHysteresisDegrees = Math.max(0, Math.min(22.5, Number(nextConfig.eightWayHysteresisDegrees) || 0));
+
+  await api("/api/settings/stick", {
+    method: "POST",
+    body: {
+      side,
+      ...nextConfig
+    }
+  });
+  await refreshState();
+}
+
 function createStickEditor(hotspot) {
   const stickConfig = getStickConfig(latestState.config, hotspot.runtimeId);
 
@@ -651,43 +721,47 @@ function createStickEditor(hotspot) {
   infoCard.innerHTML = `
     <p class="muted">${t("stickEditor.rangeHint")}</p>
     <div class="editor-meta">
-      <span class="meta-chip">${t("stickEditor.axisIndependent")}</span>
-      <span class="meta-chip">${t("stickEditor.diagonalTrigger")}</span>
+      <span class="meta-chip">${t("stickEditor.radialHysteresisTag")}</span>
+      <span class="meta-chip">${t("stickEditor.angularHysteresisTag")}</span>
+      <span class="meta-chip">${t("stickEditor.diagonalUnlockTag")}</span>
     </div>
   `;
 
   const card = document.createElement("div");
   card.className = "editor-card stick-grid";
 
-  const deadzoneLabel = document.createElement("label");
-  deadzoneLabel.textContent = t("stickEditor.deadzone");
-  const deadzoneInput = document.createElement("input");
-  deadzoneInput.type = "range";
-  deadzoneInput.min = "0";
-  deadzoneInput.max = "32767";
-  deadzoneInput.step = "256";
-  deadzoneInput.value = stickConfig.deadzone;
-  const deadzoneValue = document.createElement("span");
-  deadzoneValue.textContent = stickConfig.deadzone;
-  deadzoneInput.addEventListener("input", () => {
-    deadzoneValue.textContent = deadzoneInput.value;
-  });
-  deadzoneInput.addEventListener("change", async () => {
-    await api("/api/settings/stick", {
-      method: "POST",
-      body: {
-        side: hotspot.runtimeId,
-        deadzone: Number(deadzoneInput.value),
-        up: stickConfig.up,
-        down: stickConfig.down,
-        left: stickConfig.left,
-        right: stickConfig.right
-      }
+  const rangeFields = [
+    { labelKey: "stickEditor.deadzone", key: "deadzone", min: "0", max: "32767", step: "256" },
+    { labelKey: "stickEditor.hysteresis", key: "hysteresis", min: "0", max: "8192", step: "128" },
+    { labelKey: "stickEditor.diagonalUnlockRadius", key: "diagonalUnlockRadius", min: String(stickConfig.deadzone), max: "32767", step: "256" },
+    { labelKey: "stickEditor.fourWayHysteresisDegrees", key: "fourWayHysteresisDegrees", min: "0", max: "45", step: "1" },
+    { labelKey: "stickEditor.eightWayHysteresisDegrees", key: "eightWayHysteresisDegrees", min: "0", max: "22.5", step: "0.5" }
+  ];
+
+  rangeFields.forEach((field) => {
+    const label = document.createElement("label");
+    label.textContent = t(field.labelKey);
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = field.min;
+    input.max = field.max;
+    input.step = field.step;
+    input.value = String(stickConfig[field.key]);
+
+    const value = document.createElement("span");
+    value.textContent = input.value;
+
+    input.addEventListener("input", () => {
+      value.textContent = input.value;
     });
-    await refreshState();
+    input.addEventListener("change", async () => {
+      await updateStickConfig(hotspot.runtimeId, { [field.key]: Number(input.value) });
+    });
+
+    label.append(input, value);
+    card.appendChild(label);
   });
-  deadzoneLabel.append(deadzoneInput, deadzoneValue);
-  card.appendChild(deadzoneLabel);
 
   stickDirectionEntries.forEach((entry) => {
     const row = document.createElement("div");
@@ -696,19 +770,7 @@ function createStickEditor(hotspot) {
     label.className = "mapping-label";
     label.textContent = t(entry.labelKey);
     const editor = createActionEditor(stickConfig[entry.id] || "none", async (action) => {
-      const current = getStickConfig(latestState.config, hotspot.runtimeId);
-      await api("/api/settings/stick", {
-        method: "POST",
-        body: {
-          side: hotspot.runtimeId,
-          deadzone: current.deadzone,
-          up: entry.id === "up" ? action : current.up,
-          down: entry.id === "down" ? action : current.down,
-          left: entry.id === "left" ? action : current.left,
-          right: entry.id === "right" ? action : current.right
-        }
-      });
-      await refreshState();
+      await updateStickConfig(hotspot.runtimeId, { [entry.id]: action });
     });
     row.append(label, editor);
     card.appendChild(row);
@@ -721,16 +783,16 @@ function createStickEditor(hotspot) {
   };
 }
 
-function makeMouseDraftPatch(patch) {
-  mouseDraftConfig = {
-    ...getEffectiveMouseConfig(),
+function makeMouseDraftPatch(side, patch) {
+  mouseDraftConfig[side] = {
+    ...getEffectiveMouseConfig(side),
     ...patch
   };
-  mouseDraftDirty = true;
+  mouseDraftDirty[side] = true;
   if (latestState?.config) {
-    latestState.config.mouse = { ...mouseDraftConfig };
+    latestState.config.mouse[side] = { ...mouseDraftConfig[side] };
+    lastRenderedPopupKey = buildPopupRenderKey(latestState.config);
   }
-  lastRenderedPopupKey = "";
 }
 
 function makeServerDraftPatch(patch) {
@@ -741,8 +803,8 @@ function makeServerDraftPatch(patch) {
   serverDraftDirty = true;
   if (latestState?.config) {
     latestState.config.server = { ...serverDraftConfig };
+    lastRenderedPopupKey = buildPopupRenderKey(latestState.config);
   }
-  lastRenderedPopupKey = "";
 }
 
 function createMouseControl(labelText, input, valueNode) {
@@ -756,18 +818,17 @@ function createMouseControl(labelText, input, valueNode) {
   return label;
 }
 
-function createMouseEditor() {
-  const mouseConfig = getEffectiveMouseConfig();
-  const serverConfig = getEffectiveServerConfig();
+function createMouseEditor(hotspot) {
+  const mouseConfig = getEffectiveMouseConfig(hotspot.runtimeId);
+  const isLeft = hotspot.runtimeId === "left";
 
   const infoCard = document.createElement("div");
   infoCard.className = "editor-card";
   infoCard.innerHTML = `
     <p class="muted">${t("mouseEditor.draftHint")}</p>
     <div class="editor-meta">
-      <span class="meta-chip">${t("mouseEditor.opticalTag")}</span>
+      <span class="meta-chip">${t(isLeft ? "mouseEditor.opticalTagLeft" : "mouseEditor.opticalTagRight")}</span>
       <span class="meta-chip">${t("mouseEditor.sharedEditorTag")}</span>
-      <span class="meta-chip">${t("mouseEditor.serverTag")}</span>
     </div>
   `;
 
@@ -780,23 +841,9 @@ function createMouseEditor() {
   enabledInput.type = "checkbox";
   enabledInput.checked = mouseConfig.enabled;
   enabledInput.addEventListener("change", () => {
-    makeMouseDraftPatch({ enabled: enabledInput.checked });
+    makeMouseDraftPatch(hotspot.runtimeId, { enabled: enabledInput.checked });
   });
   grid.appendChild(createMouseControl(t("mouseEditor.enableMapping"), enabledInput));
-
-  const portInput = document.createElement("input");
-  portInput.type = "number";
-  portInput.className = "custom-key-input";
-  portInput.min = "1";
-  portInput.max = "65535";
-  portInput.step = "1";
-  portInput.value = String(serverConfig.port);
-  portInput.addEventListener("change", () => {
-    const nextPort = normalizePort(portInput.value);
-    portInput.value = String(nextPort);
-    makeServerDraftPatch({ port: nextPort });
-  });
-  grid.appendChild(createMouseControl(t("mouseEditor.webPort"), portInput));
 
   const rangeFields = [
     { labelKey: "mouseEditor.baseSensitivity", key: "baseSensitivity", min: "0.02", max: "1.00", step: "0.01", format: (value) => Number(value).toFixed(2) },
@@ -819,12 +866,12 @@ function createMouseEditor() {
 
     input.addEventListener("input", () => {
       value.textContent = field.format(input.value);
-      makeMouseDraftPatch({ [field.key]: Number(input.value) });
+      makeMouseDraftPatch(hotspot.runtimeId, { [field.key]: Number(input.value) });
     });
 
     input.addEventListener("change", () => {
       value.textContent = field.format(input.value);
-      makeMouseDraftPatch({ [field.key]: Number(input.value) });
+      makeMouseDraftPatch(hotspot.runtimeId, { [field.key]: Number(input.value) });
     });
 
     grid.appendChild(createMouseControl(t(field.labelKey), input, value));
@@ -832,13 +879,53 @@ function createMouseEditor() {
 
   card.appendChild(grid);
   return {
-    kicker: t("mouseEditor.kicker"),
-    title: t("mouseEditor.title"),
+    kicker: t(isLeft ? "mouseEditor.kickerLeft" : "mouseEditor.kickerRight"),
+    title: getHotspotLabel(hotspot),
     nodes: [infoCard, card]
   };
 }
 
-function updateLocalizedStateText() {
+function createServerEditor() {
+  const serverConfig = getEffectiveServerConfig();
+
+  const infoCard = document.createElement("div");
+  infoCard.className = "editor-card";
+  infoCard.innerHTML = `
+    <p class="muted">${t("serverEditor.draftHint")}</p>
+    <div class="editor-meta">
+      <span class="meta-chip">${t("serverEditor.localTag")}</span>
+      <span class="meta-chip">${t("serverEditor.sharedEditorTag")}</span>
+    </div>
+  `;
+
+  const card = document.createElement("div");
+  card.className = "editor-card";
+  const grid = document.createElement("div");
+  grid.className = "control-grid";
+
+  const portInput = document.createElement("input");
+  portInput.type = "number";
+  portInput.className = "custom-key-input";
+  portInput.min = "1";
+  portInput.max = "65535";
+  portInput.step = "1";
+  portInput.value = String(serverConfig.port);
+  portInput.addEventListener("change", () => {
+    const nextPort = normalizePort(portInput.value);
+    portInput.value = String(nextPort);
+    makeServerDraftPatch({ port: nextPort });
+  });
+  grid.appendChild(createMouseControl(t("serverEditor.webPort"), portInput));
+
+  card.appendChild(grid);
+  return {
+    kicker: t("serverEditor.kicker"),
+    title: t("serverEditor.title"),
+    nodes: [infoCard, card]
+  };
+}
+
+function updateLocalizedStateText(forceConfigRender = false) {
   if (!latestState) {
     setDockPlaceholder();
     return;
@@ -853,10 +940,12 @@ function updateLocalizedStateText() {
   ui.leftStats.textContent = formatControllerStats(latestState.left);
   ui.rightStats.textContent = formatControllerStats(latestState.right);
   ui.mouseStats.textContent = formatMouseStats(latestState.mouseStats);
-  lastRenderedVisualKey = "";
-  lastRenderedPopupKey = "";
-  renderInteractiveMapper(true);
-  renderEditor(true);
+  if (forceConfigRender) {
+    lastRenderedVisualKey = "";
+    lastRenderedPopupKey = "";
+  }
+  renderInteractiveMapper(forceConfigRender);
+  renderEditor(forceConfigRender);
 }
 
 function createEditorDescriptor(hotspot) {
@@ -870,7 +959,10 @@ function createEditorDescriptor(hotspot) {
     return createStickEditor(hotspot);
   }
   if (hotspot.type === "mouse") {
-    return createMouseEditor();
+    return createMouseEditor(hotspot);
+  }
+  if (hotspot.type === "server") {
+    return createServerEditor();
   }
   return null;
 }
@@ -928,8 +1020,11 @@ function closeEditor() {
 
 function renderState(snapshot) {
   const normalizedConfig = normalizeConfig(snapshot.config || {});
-  if (mouseDraftDirty && mouseDraftConfig) {
-    normalizedConfig.mouse = getEffectiveMouseConfig();
+  if (mouseDraftDirty.left && mouseDraftConfig.left) {
+    normalizedConfig.mouse.left = getEffectiveMouseConfig("left");
+  }
+  if (mouseDraftDirty.right && mouseDraftConfig.right) {
+    normalizedConfig.mouse.right = getEffectiveMouseConfig("right");
   }
   if (serverDraftDirty && serverDraftConfig) {
     normalizedConfig.server = getEffectiveServerConfig();
@@ -953,6 +1048,10 @@ async function refreshState() {
 function bindActions() {
   ui.languageSelect.addEventListener("change", () => {
     setLanguage(ui.languageSelect.value);
+  });
+
+  ui.serverSettingsBtn.addEventListener("click", () => {
+    openEditor("server-settings");
   });
 
   document.getElementById("connectLeftBtn").addEventListener("click", async () => {
@@ -979,8 +1078,8 @@ function bindActions() {
 
   ui.saveConfigBtn.addEventListener("click", async () => {
     const result = await saveAndApplyBrowserConfig(buildBrowserConfig());
-    mouseDraftDirty = false;
-    mouseDraftConfig = null;
+    mouseDraftDirty = { left: false, right: false };
+    mouseDraftConfig = { left: null, right: null };
     serverDraftDirty = false;
     serverDraftConfig = null;
     if (!result.redirected) {
@@ -1039,7 +1138,7 @@ async function boot() {
   applyStaticTranslations();
   onLanguageChange(() => {
     applyStaticTranslations();
-    updateLocalizedStateText();
+    updateLocalizedStateText(true);
   });
   bindActions();
   await refreshState();

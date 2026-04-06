@@ -12,6 +12,7 @@
         label: "语言"
       },
       toolbar: {
+        serverSettings: "服务设置",
         saveApply: "保存并应用",
         export: "导出",
         import: "导入"
@@ -56,26 +57,38 @@
       },
       stickEditor: {
         rangeHint: "摇杆范围：左 <code>-32767</code> / 中 <code>0</code> / 右 <code>32767</code>，上 <code>-32767</code> / 中 <code>0</code> / 下 <code>32767</code>。",
-        axisIndependent: "X/Y 轴独立判定",
-        diagonalTrigger: "支持斜向同时触发",
         deadzone: "死区",
+        hysteresis: "径向粘滞",
+        diagonalUnlockRadius: "8 向解锁半径",
+        fourWayHysteresisDegrees: "4 向角度粘滞",
+        eightWayHysteresisDegrees: "8 向角度粘滞",
+        radialHysteresisTag: "按下/松开分离阈值",
+        angularHysteresisTag: "扇区切换角度粘滞",
+        diagonalUnlockTag: "近区 4 向，远区 8 向",
         kickerLeft: "左摇杆设置",
         kickerRight: "右摇杆设置"
       },
       mouseEditor: {
         draftHint: "这里的修改会先保留在当前页面，点击顶部“保存并应用”后统一写入配置文件，并让运行时按文件重新加载。",
-        opticalTag: "右侧 Joy-Con 2 光学鼠标",
+        opticalTagLeft: "左侧 Joy-Con 2 光学鼠标",
+        opticalTagRight: "右侧 Joy-Con 2 光学鼠标",
         sharedEditorTag: "与按键/摇杆共用同一编辑器",
-        serverTag: "本地 Web 服务设置",
         enableMapping: "启用鼠标映射",
-        webPort: "Web UI 端口",
         baseSensitivity: "基础灵敏度",
         acceleration: "加速度",
         exponent: "指数",
         maxGain: "最大增益",
         distanceThreshold: "光学距离阈值",
-        kicker: "鼠标设置",
-        title: "鼠标设置"
+        kickerLeft: "左鼠标设置",
+        kickerRight: "右鼠标设置"
+      },
+      serverEditor: {
+        draftHint: "这里的修改会先保留在当前页面，点击顶部“保存并应用”后统一写入配置文件，并在需要时跳转到新端口。",
+        localTag: "本地 Web 服务",
+        sharedEditorTag: "与映射编辑共用同一编辑器",
+        webPort: "Web UI 端口",
+        kicker: "服务设置",
+        title: "服务设置"
       },
       directions: {
         up: "上",
@@ -124,6 +137,7 @@
         leftRight: "右方向键",
         leftDown: "下方向键",
         leftCapture: "截图键",
+        leftMouse: "左鼠标",
         leftSl: "SL 键",
         leftSr: "SR 键",
         rightZr: "ZR 键",
@@ -183,6 +197,7 @@
         label: "Language"
       },
       toolbar: {
+        serverSettings: "Server Settings",
         saveApply: "Save & Apply",
         export: "Export",
         import: "Import"
@@ -227,26 +242,38 @@
       },
       stickEditor: {
         rangeHint: "Stick range: left <code>-32767</code> / center <code>0</code> / right <code>32767</code>, up <code>-32767</code> / center <code>0</code> / down <code>32767</code>.",
-        axisIndependent: "X/Y axes are evaluated independently",
-        diagonalTrigger: "Diagonal input can trigger multiple actions",
         deadzone: "Deadzone",
+        hysteresis: "Radial hysteresis",
+        diagonalUnlockRadius: "Diagonal unlock radius",
+        fourWayHysteresisDegrees: "4-way angular hysteresis",
+        eightWayHysteresisDegrees: "8-way angular hysteresis",
+        radialHysteresisTag: "Separate press/release thresholds",
+        angularHysteresisTag: "Angular hysteresis between sectors",
+        diagonalUnlockTag: "Cardinal near center, diagonal farther out",
         kickerLeft: "Left Stick Settings",
         kickerRight: "Right Stick Settings"
       },
       mouseEditor: {
         draftHint: "Changes here stay on the current page first. Click \"Save & Apply\" to write them into the config file and reload the runtime from that file.",
-        opticalTag: "Right Joy-Con 2 optical mouse",
+        opticalTagLeft: "Left Joy-Con 2 optical mouse",
+        opticalTagRight: "Right Joy-Con 2 optical mouse",
         sharedEditorTag: "Uses the same editor as buttons and sticks",
-        serverTag: "Local Web server settings",
         enableMapping: "Enable mouse mapping",
-        webPort: "Web UI port",
         baseSensitivity: "Base sensitivity",
         acceleration: "Acceleration",
         exponent: "Exponent",
         maxGain: "Max gain",
         distanceThreshold: "Optical distance threshold",
-        kicker: "Mouse Settings",
-        title: "Mouse Settings"
+        kickerLeft: "Left Mouse Settings",
+        kickerRight: "Right Mouse Settings"
+      },
+      serverEditor: {
+        draftHint: "Changes here stay on the current page first. Click \"Save & Apply\" to write them into the config file and redirect if the port changed.",
+        localTag: "Local Web server",
+        sharedEditorTag: "Uses the same editor surface as mapping settings",
+        webPort: "Web UI port",
+        kicker: "Server Settings",
+        title: "Server Settings"
       },
       directions: {
         up: "Up",
@@ -295,6 +322,7 @@
         leftRight: "Right Button",
         leftDown: "Down Button",
         leftCapture: "Capture Button",
+        leftMouse: "Left Mouse",
         leftSl: "SL Button",
         leftSr: "SR Button",
         rightZr: "ZR Button",
