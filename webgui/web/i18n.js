@@ -3,7 +3,8 @@
   const translations = {
     "zh-CN": {
       meta: {
-        title: "Joy-Con 2 Web GUI"
+        title: "Joy-Con 2 Web GUI",
+        githubAriaLabel: "在 GitHub 上查看本仓库"
       },
       app: {
         tagline: "连接手柄、调整鼠标参数、编辑按键与摇杆映射。"
@@ -184,7 +185,8 @@
     },
     en: {
       meta: {
-        title: "Joy-Con 2 Web GUI"
+        title: "Joy-Con 2 Web GUI",
+        githubAriaLabel: "View this repository on GitHub"
       },
       app: {
         tagline: "Connect controllers, tune mouse parameters, and edit button and stick mappings."

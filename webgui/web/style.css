@@ -64,8 +64,44 @@ body {
   margin-bottom: 24px;
 }
 
-.topbar h1 {
-  margin: 0 0 8px;
+.topbar-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.topbar-title-row h1 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.github-repo-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 8px;
+  color: var(--muted);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.github-repo-link:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.github-repo-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.github-repo-link .github-mark {
+  width: 26px;
+  height: 26px;
+  display: block;
 }
 
 .topbar p {
