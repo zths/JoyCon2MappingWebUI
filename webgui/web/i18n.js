@@ -64,6 +64,7 @@
         radialHysteresisTag: "按下/松开分离阈值",
         angularHysteresisTag: "扇区切换角度粘滞",
         diagonalUnlockTag: "近区 4 向，远区 8 向",
+        stickPress: "摇杆按下（{id}）",
         kickerLeft: "左摇杆设置",
         kickerRight: "右摇杆设置"
       },
@@ -244,6 +245,7 @@
         radialHysteresisTag: "Separate press/release thresholds",
         angularHysteresisTag: "Angular hysteresis between sectors",
         diagonalUnlockTag: "Cardinal near center, diagonal farther out",
+        stickPress: "Stick press ({id})",
         kickerLeft: "Left Stick Settings",
         kickerRight: "Right Stick Settings"
       },

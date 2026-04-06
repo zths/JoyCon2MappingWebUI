@@ -437,7 +437,10 @@ function isHotspotConfigured(config, hotspot) {
       || mouseConfig.distanceThreshold !== defaultMouseConfig.distanceThreshold;
   }
   const stickConfig = getStickConfig(config, hotspot.runtimeId);
-  return [stickConfig.up, stickConfig.down, stickConfig.left, stickConfig.right].some((value) => value !== "none")
+  const pressId = hotspot.runtimeId === "left" ? "L3" : "R3";
+  const pressMapped = (config.mapping?.[hotspot.side]?.[pressId] || "none") !== "none";
+  return pressMapped
+    || [stickConfig.up, stickConfig.down, stickConfig.left, stickConfig.right].some((value) => value !== "none")
     || stickConfig.deadzone !== defaultStickConfig.deadzone
     || stickConfig.hysteresis !== defaultStickConfig.hysteresis
     || stickConfig.diagonalUnlockRadius !== defaultStickConfig.diagonalUnlockRadius
@@ -724,6 +727,22 @@ function createStickEditor(hotspot) {
     label.append(input, value);
     card.appendChild(label);
   });
+
+  const stickPressId = hotspot.runtimeId === "left" ? "L3" : "R3";
+  const pressRow = document.createElement("div");
+  pressRow.className = "mapping-row";
+  const pressLabel = document.createElement("div");
+  pressLabel.className = "mapping-label";
+  pressLabel.textContent = t("stickEditor.stickPress", { id: stickPressId });
+  const pressEditor = createActionEditor(
+    getButtonAction(latestConfig, { side: hotspot.side, runtimeId: stickPressId }),
+    (action) => {
+      makeButtonDraftPatch(hotspot.side, stickPressId, action);
+      renderInteractiveMapper(true);
+    }
+  );
+  pressRow.append(pressLabel, pressEditor);
+  card.appendChild(pressRow);
 
   stickDirectionEntries.forEach((entry) => {
     const row = document.createElement("div");
