@@ -13,6 +13,7 @@ add_executable(JoyCon2Mapper
   src/config_json.cpp
   src/control_api.cpp
   src/config_store.cpp
+  src/key_capture_win.cpp
   src/mapper_runtime.cpp
 )
 
@@ -28,6 +29,7 @@ target_link_libraries(JoyCon2Mapper
     windowsapp
     ws2_32
     shell32
+    user32
 )
 
 if(MSVC)

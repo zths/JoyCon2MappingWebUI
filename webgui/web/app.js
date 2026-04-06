@@ -5,6 +5,8 @@ const actionOptions = [
   { value: "mouse_left", labelKey: "actions.mouseLeft" },
   { value: "mouse_right", labelKey: "actions.mouseRight" },
   { value: "mouse_middle", labelKey: "actions.mouseMiddle" },
+  { value: "mouse_wheel_up", labelKey: "actions.mouseWheelUp" },
+  { value: "mouse_wheel_down", labelKey: "actions.mouseWheelDown" },
   { value: "key_space", labelKey: "actions.keySpace" },
   { value: "key_enter", labelKey: "actions.keyEnter" },
   { value: "key_escape", labelKey: "actions.keyEscape" },
@@ -132,6 +134,7 @@ let toastTimer = null;
 let refreshTimer = null;
 let redirectInFlight = false;
 const dockedEditorMedia = window.matchMedia("(min-width: 1100px)");
+let stopActivePageKeyListen = null;
 
 function formatDistanceThreshold(value) {
   return `0x${Number(value).toString(16)}`;
@@ -206,9 +209,50 @@ async function api(path, options = {}) {
   const response = await fetch(path, {
     method: options.method || "GET",
     headers: { "Content-Type": "application/json" },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    signal: options.signal
   });
   return response.json();
+}
+
+function keyboardCodeToCustomToken(code) {
+  if (!code) {
+    return null;
+  }
+  if (code.startsWith("Key") && code.length === 4) {
+    return code.slice(3);
+  }
+  if (code.startsWith("Digit")) {
+    return code.slice(5);
+  }
+  const named = {
+    Space: "SPACE",
+    Enter: "ENTER",
+    Escape: "ESC",
+    Tab: "TAB",
+    ArrowLeft: "LEFT",
+    ArrowRight: "RIGHT",
+    ArrowUp: "UP",
+    ArrowDown: "DOWN",
+    ControlLeft: "CTRL",
+    ControlRight: "CTRL",
+    ShiftLeft: "SHIFT",
+    ShiftRight: "SHIFT",
+    AltLeft: "ALT",
+    AltRight: "ALT"
+  };
+  if (named[code]) {
+    return named[code];
+  }
+  const fn = code.match(/^F([1-9]|1[0-2])$/);
+  if (fn) {
+    return `F${fn[1]}`;
+  }
+  const numpad = code.match(/^Numpad(\d)$/);
+  if (numpad) {
+    return numpad[1];
+  }
+  return null;
 }
 
 function getStickConfig(config, side) {
@@ -562,6 +606,11 @@ function renderInteractiveMapper(force = false) {
 }
 
 function createActionEditor(currentValue, onChange) {
+  if (stopActivePageKeyListen) {
+    stopActivePageKeyListen();
+    stopActivePageKeyListen = null;
+  }
+
   const wrapper = document.createElement("div");
   wrapper.className = "action-editor";
 
@@ -577,39 +626,154 @@ function createActionEditor(currentValue, onChange) {
     select.appendChild(node);
   });
 
-  const keyInput = document.createElement("input");
-  keyInput.type = "text";
-  keyInput.className = "custom-key-input";
-  keyInput.placeholder = t("editor.customKeyPlaceholder");
-  keyInput.value = currentIsCustom ? currentValue.slice("key_custom:".length) : "";
+  const customRow = document.createElement("div");
+  customRow.className = "custom-key-row";
+
+  const tokenSpan = document.createElement("span");
+  tokenSpan.className = "custom-key-token";
+  tokenSpan.setAttribute("aria-live", "polite");
+
+  const listenBtn = document.createElement("button");
+  listenBtn.type = "button";
+  listenBtn.className = "custom-key-capture-btn";
+  listenBtn.textContent = t("editor.listenKey");
+
+  const nativeBtn = document.createElement("button");
+  nativeBtn.type = "button";
+  nativeBtn.className = "custom-key-capture-btn";
+  nativeBtn.textContent = t("editor.captureKeyNative");
+
+  customRow.append(tokenSpan, listenBtn, nativeBtn);
+
+  function setCustomTokenDisplay(token) {
+    tokenSpan.textContent = token || "—";
+    tokenSpan.classList.toggle("muted", !token);
+  }
+
+  function updateCustomRowVisibility() {
+    const show = select.value === "key_custom";
+    customRow.hidden = !show;
+    if (show) {
+      const suffix = currentValue.startsWith("key_custom:") ? currentValue.slice("key_custom:".length) : "";
+      setCustomTokenDisplay(suffix);
+    }
+  }
+
+  let listeningPage = false;
+  let onKeyDownCapture = null;
+
+  function stopPageListen() {
+    if (!listeningPage) {
+      return;
+    }
+    listeningPage = false;
+    if (stopActivePageKeyListen === stopPageListen) {
+      stopActivePageKeyListen = null;
+    }
+    wrapper.classList.remove("action-editor--listening");
+    listenBtn.textContent = t("editor.listenKey");
+    listenBtn.setAttribute("aria-pressed", "false");
+    if (onKeyDownCapture) {
+      window.removeEventListener("keydown", onKeyDownCapture, true);
+      onKeyDownCapture = null;
+    }
+  }
+
+  function startPageListen() {
+    if (listeningPage) {
+      stopPageListen();
+      return;
+    }
+    if (select.value !== "key_custom") {
+      select.value = "key_custom";
+    }
+    updateCustomRowVisibility();
+    listeningPage = true;
+    wrapper.classList.add("action-editor--listening");
+    listenBtn.textContent = t("editor.listenKeyStop");
+    listenBtn.setAttribute("aria-pressed", "true");
+    showToast(t("editor.listenKeyHint"));
+    onKeyDownCapture = (ev) => {
+      if (!listeningPage) {
+        return;
+      }
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.key === "Escape" || ev.code === "Escape") {
+        stopPageListen();
+        return;
+      }
+      const token = keyboardCodeToCustomToken(ev.code);
+      if (token) {
+        setCustomTokenDisplay(token);
+        onChange(`key_custom:${token}`);
+        stopPageListen();
+      } else {
+        showToast(t("editor.listenKeyUnknownCode", { code: ev.code }));
+        stopPageListen();
+      }
+    };
+    window.addEventListener("keydown", onKeyDownCapture, true);
+    stopActivePageKeyListen = stopPageListen;
+  }
+
+  listenBtn.addEventListener("click", () => {
+    if (listeningPage) {
+      stopPageListen();
+    } else {
+      startPageListen();
+    }
+  });
+
+  nativeBtn.addEventListener("click", async () => {
+    if (select.value !== "key_custom") {
+      select.value = "key_custom";
+    }
+    updateCustomRowVisibility();
+    stopPageListen();
+    nativeBtn.disabled = true;
+    showToast(t("editor.captureKeyWaiting"));
+    const ac = new AbortController();
+    const tid = window.setTimeout(() => ac.abort(), 90000);
+    try {
+      const data = await api("/api/capture-key", { method: "POST", signal: ac.signal });
+      if (data.ok) {
+        setCustomTokenDisplay(data.token);
+        onChange(data.action);
+      } else if (data.error === "cancelled") {
+        showToast(t("editor.captureKeyCancelled"));
+      } else {
+        const errMsg = t(`editor.captureError.${data.error}`, {}, data.error);
+        showToast(t("editor.captureKeyFailed", { detail: errMsg }));
+      }
+    } catch (e) {
+      if (e.name === "AbortError") {
+        showToast(t("editor.captureKeyAborted"));
+      } else {
+        showToast(t("editor.captureKeyFailed", { detail: String(e.message || e) }));
+      }
+    } finally {
+      window.clearTimeout(tid);
+      nativeBtn.disabled = false;
+    }
+  });
 
   select.addEventListener("change", () => {
+    stopPageListen();
     if (select.value === "key_custom") {
-      if (keyInput.value.trim()) {
-        onChange(`key_custom:${keyInput.value.trim()}`);
+      if (currentValue.startsWith("key_custom:")) {
+        onChange(currentValue);
       }
+      updateCustomRowVisibility();
       return;
     }
 
-    keyInput.value = "";
     onChange(select.value);
+    updateCustomRowVisibility();
   });
 
-  keyInput.addEventListener("change", () => {
-    const trimmed = keyInput.value.trim();
-    if (!trimmed) {
-      if (select.value === "key_custom") {
-        select.value = "none";
-        onChange("none");
-      }
-      return;
-    }
-
-    select.value = "key_custom";
-    onChange(`key_custom:${trimmed}`);
-  });
-
-  wrapper.append(select, keyInput);
+  wrapper.append(select, customRow);
+  updateCustomRowVisibility();
   return wrapper;
 }
 

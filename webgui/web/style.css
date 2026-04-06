@@ -230,11 +230,6 @@ label {
   font-size: 14px;
 }
 
-button,
-select,
-input[type="range"] {
-  width: 100%;
-}
 
 button,
 select {
@@ -296,6 +291,52 @@ button:not(.editor-backdrop):hover {
   padding: 10px 12px;
   background: var(--panel);
   color: var(--text);
+}
+
+.custom-key-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+  width: 100%;
+}
+
+.custom-key-token {
+  flex: 1 1 120px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.4;
+  align-self: center;
+}
+
+.custom-key-token.muted {
+  color: var(--muted);
+}
+
+button.custom-key-capture-btn {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+button.custom-key-capture-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.custom-key-capture-btn:hover:not(:disabled) {
+  background: var(--joy-shell-light);
 }
 
 pre {
@@ -885,9 +926,17 @@ button.hotspot {
 }
 
 .action-editor {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+}
+
+.action-editor--listening {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 12px;
+  padding: 4px;
+  margin: -4px;
 }
 
 .editor-meta {
@@ -949,7 +998,6 @@ button.hotspot {
   }
 
   .mapping-row,
-  .action-editor,
   .topbar {
     grid-template-columns: 1fr;
   }

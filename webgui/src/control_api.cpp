@@ -9,8 +9,10 @@
 
 #include "config_json.h"
 #include "control_api.h"
+#include "key_capture_win.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -297,6 +299,17 @@ void ControlApiServer::HandleClient(uintptr_t clientSocketValue) {
             response.body = json{ { "ok", true } }.dump();
         } else {
             response.body = json{ { "ok", false }, { "error", error } }.dump();
+        }
+    } else if (method == "POST" && path == "/api/capture-key") {
+        const CaptureKeyResult captured = CaptureKeyCustomToken(std::chrono::milliseconds(45000));
+        if (captured.ok) {
+            response.body = json{
+                { "ok", true },
+                { "token", captured.token },
+                { "action", captured.action },
+            }.dump();
+        } else {
+            response.body = json{ { "ok", false }, { "error", captured.error } }.dump();
         }
     } else {
         std::filesystem::path filePath = staticRoot_ / (path == "/" ? "index.html" : path.substr(1));

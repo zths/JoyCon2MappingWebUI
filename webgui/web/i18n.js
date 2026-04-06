@@ -47,7 +47,20 @@
         selectPromptBody: "点击左侧手柄上的按钮、摇杆或鼠标入口后，在这里编辑对应设置。",
         close: "关闭",
         closeDialog: "关闭浮窗",
-        customKeyPlaceholder: "例如 W / Space / Esc"
+        listenKey: "页面捕获",
+        listenKeyStop: "停止监听",
+        listenKeyHint: "请按键（Esc 取消）。部分浏览器快捷键可能被拦截，可改用「系统捕获」。",
+        listenKeyUnknownCode: "无法从页面识别该键：{code}。可手动输入或使用「系统捕获」。",
+        captureKeyNative: "系统捕获",
+        captureKeyWaiting: "正在等待键盘… 按 Esc 取消（约 45 秒内）",
+        captureKeyCancelled: "已取消",
+        captureKeyAborted: "请求超时或已中断",
+        captureKeyFailed: "捕获失败：{detail}",
+        captureError: {
+          timeout: "等待超时",
+          hook_failed: "键盘钩子无法安装",
+          unsupported_key: "该键暂不支持"
+        }
       },
       buttonEditor: {
         mappingId: "映射 ID: {runtimeId}",
@@ -98,6 +111,8 @@
         mouseLeft: "鼠标左键",
         mouseRight: "鼠标右键",
         mouseMiddle: "鼠标中键",
+        mouseWheelUp: "滚轮向上",
+        mouseWheelDown: "滚轮向下",
         keySpace: "空格键",
         keyEnter: "回车键",
         keyEscape: "Esc 键",
@@ -229,7 +244,20 @@
         selectPromptBody: "Click a button, stick, or mouse entry on the controller to edit its settings here.",
         close: "Close",
         closeDialog: "Close dialog",
-        customKeyPlaceholder: "For example: W / Space / Esc"
+        listenKey: "Capture in page",
+        listenKeyStop: "Stop listening",
+        listenKeyHint: "Press a key (Esc to cancel). Some browser shortcuts may be intercepted; try “Capture from OS” instead.",
+        listenKeyUnknownCode: "Unrecognized key: {code}. Type manually or use “Capture from OS”.",
+        captureKeyNative: "Capture from OS",
+        captureKeyWaiting: "Waiting for a key… Press Esc to cancel (about 45s)",
+        captureKeyCancelled: "Cancelled",
+        captureKeyAborted: "Request timed out or was aborted",
+        captureKeyFailed: "Capture failed: {detail}",
+        captureError: {
+          timeout: "Timed out",
+          hook_failed: "Keyboard hook could not be installed",
+          unsupported_key: "This key is not supported yet"
+        }
       },
       buttonEditor: {
         mappingId: "Mapping ID: {runtimeId}",
@@ -280,6 +308,8 @@
         mouseLeft: "Mouse Left",
         mouseRight: "Mouse Right",
         mouseMiddle: "Mouse Middle",
+        mouseWheelUp: "Mouse Wheel Up",
+        mouseWheelDown: "Mouse Wheel Down",
         keySpace: "Key Space",
         keyEnter: "Key Enter",
         keyEscape: "Key Escape",

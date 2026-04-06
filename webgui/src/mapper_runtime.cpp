@@ -160,6 +160,14 @@ void SendMouseButton(DWORD downFlag, DWORD upFlag, bool pressed) {
     SendInput(1, &input, sizeof(INPUT));
 }
 
+void SendMouseWheel(int32_t delta) {
+    INPUT input = {};
+    input.type = INPUT_MOUSE;
+    input.mi.dwFlags = MOUSEEVENTF_WHEEL;
+    input.mi.mouseData = static_cast<DWORD>(delta);
+    SendInput(1, &input, sizeof(INPUT));
+}
+
 bool IsExtendedVirtualKey(WORD virtualKey) {
     switch (virtualKey) {
     case VK_RMENU:
@@ -996,6 +1004,18 @@ void MapperRuntime::InjectMappedAction(const std::string& action, bool pressed) 
     }
     if (action == "mouse_middle") {
         SendMouseButton(MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, pressed);
+        return;
+    }
+    if (action == "mouse_wheel_up") {
+        if (pressed) {
+            SendMouseWheel(WHEEL_DELTA);
+        }
+        return;
+    }
+    if (action == "mouse_wheel_down") {
+        if (pressed) {
+            SendMouseWheel(-static_cast<int32_t>(WHEEL_DELTA));
+        }
         return;
     }
 
