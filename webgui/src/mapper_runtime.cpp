@@ -463,27 +463,6 @@ AppConfig MapperRuntime::CurrentConfig() const {
     return config_;
 }
 
-void MapperRuntime::SetMouseSettings(JoyConSide side, const MouseSettings& settings) {
-    std::scoped_lock lock(mutex_);
-    MouseSettingsForSide(config_.mouse, side) = settings;
-}
-
-void MapperRuntime::SetButtonMapping(JoyConSide side, const std::string& buttonId, const std::string& action) {
-    std::scoped_lock lock(mutex_);
-    auto& slot = (side == JoyConSide::Left) ? leftSlot_ : rightSlot_;
-    ReleaseMappedInputs(slot);
-    auto& mapping = (side == JoyConSide::Left) ? config_.mapping.left : config_.mapping.right;
-    mapping[buttonId] = action;
-}
-
-void MapperRuntime::SetStickMapping(JoyConSide side, const StickMapping& mapping) {
-    std::scoped_lock lock(mutex_);
-    auto& slot = (side == JoyConSide::Left) ? leftSlot_ : rightSlot_;
-    ReleaseMappedInputs(slot);
-    auto& target = StickMappingForSide(config_.sticks, side);
-    target = NormalizeStickMapping(mapping);
-}
-
 bool MapperRuntime::ConnectSide(JoyConSide side, std::string& errorMessage) {
     try {
         winrt::init_apartment();

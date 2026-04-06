@@ -247,6 +247,8 @@ void ControlApiServer::HandleClient(uintptr_t clientSocketValue) {
 
     if (method == "GET" && path == "/api/state") {
         response.body = RuntimeSnapshotToJson(runtime_.Snapshot()).dump();
+    } else if (method == "GET" && path == "/api/config") {
+        response.body = ConfigToJson(runtime_.CurrentConfig()).dump();
     } else if (method == "GET" && path == "/api/stats") {
         const auto snapshot = runtime_.Snapshot();
         response.body = json{
@@ -270,82 +272,6 @@ void ControlApiServer::HandleClient(uintptr_t clientSocketValue) {
     } else if (method == "POST" && path == "/api/disconnect/right") {
         runtime_.DisconnectSide(JoyConSide::Right);
         response.body = json{ { "ok", true } }.dump();
-    } else if (method == "POST" && path == "/api/settings/mouse") {
-        json requestBody;
-        if (!TryParseJsonBody(body, response, requestBody)) {
-            SendResponse(client, response);
-            closesocket(client);
-            return;
-        }
-
-        auto config = runtime_.CurrentConfig();
-        const std::string side = requestBody.value("side", "");
-        if (side != "left" && side != "right") {
-            response = JsonError(400, "Invalid mouse payload.");
-        } else {
-            auto settings = (side == "left") ? config.mouse.left : config.mouse.right;
-            settings.enabled = requestBody.value("enabled", settings.enabled);
-            settings.baseSensitivity = requestBody.value("baseSensitivity", settings.baseSensitivity);
-            settings.acceleration = requestBody.value("acceleration", settings.acceleration);
-            settings.exponent = requestBody.value("exponent", settings.exponent);
-            settings.maxGain = requestBody.value("maxGain", settings.maxGain);
-            settings.distanceThreshold = static_cast<uint8_t>(
-                std::clamp(requestBody.value("distanceThreshold", static_cast<int>(settings.distanceThreshold)), 0, 12));
-            runtime_.SetMouseSettings(side == "left" ? JoyConSide::Left : JoyConSide::Right, settings);
-            response.body = json{ { "ok", true } }.dump();
-        }
-    } else if (method == "POST" && path == "/api/settings/mapping") {
-        json requestBody;
-        if (!TryParseJsonBody(body, response, requestBody)) {
-            SendResponse(client, response);
-            closesocket(client);
-            return;
-        }
-
-        const std::string side = requestBody.value("side", "");
-        const std::string buttonId = requestBody.value("buttonId", "");
-        const std::string action = requestBody.value("action", "none");
-        if ((side != "left" && side != "right") || buttonId.empty()) {
-            response = JsonError(400, "Invalid mapping payload.");
-        } else {
-            runtime_.SetButtonMapping(side == "left" ? JoyConSide::Left : JoyConSide::Right, buttonId, action);
-            response.body = json{ { "ok", true } }.dump();
-        }
-    } else if (method == "POST" && path == "/api/settings/stick") {
-        json requestBody;
-        if (!TryParseJsonBody(body, response, requestBody)) {
-            SendResponse(client, response);
-            closesocket(client);
-            return;
-        }
-
-        const std::string side = requestBody.value("side", "");
-        if (side != "left" && side != "right") {
-            response = JsonError(400, "Invalid stick payload.");
-        } else {
-            auto config = runtime_.CurrentConfig();
-            auto mapping = (side == "left") ? config.sticks.left : config.sticks.right;
-            mapping.deadzone = std::clamp(requestBody.value("deadzone", mapping.deadzone), 0, 32767);
-            mapping.hysteresis = std::clamp(requestBody.value("hysteresis", mapping.hysteresis), 0, 32767);
-            mapping.diagonalUnlockRadius = std::clamp(
-                requestBody.value("diagonalUnlockRadius", requestBody.value("cardinalLockRadius", mapping.diagonalUnlockRadius)),
-                mapping.deadzone,
-                32767);
-            mapping.fourWayHysteresisDegrees = std::clamp(
-                requestBody.value("fourWayHysteresisDegrees", mapping.fourWayHysteresisDegrees),
-                0.0,
-                45.0);
-            mapping.eightWayHysteresisDegrees = std::clamp(
-                requestBody.value("eightWayHysteresisDegrees", mapping.eightWayHysteresisDegrees),
-                0.0,
-                22.5);
-            mapping.up = requestBody.value("up", mapping.up);
-            mapping.down = requestBody.value("down", mapping.down);
-            mapping.left = requestBody.value("left", mapping.left);
-            mapping.right = requestBody.value("right", mapping.right);
-            runtime_.SetStickMapping(side == "left" ? JoyConSide::Left : JoyConSide::Right, mapping);
-            response.body = json{ { "ok", true } }.dump();
-        }
     } else if (method == "POST" && path == "/api/config/replace") {
         json requestBody;
         if (!TryParseJsonBody(body, response, requestBody)) {

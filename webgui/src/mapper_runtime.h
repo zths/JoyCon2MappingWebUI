@@ -112,10 +112,6 @@ public:
     void ApplyConfig(const AppConfig& config);
     AppConfig CurrentConfig() const;
 
-    void SetMouseSettings(JoyConSide side, const MouseSettings& settings);
-    void SetButtonMapping(JoyConSide side, const std::string& buttonId, const std::string& action);
-    void SetStickMapping(JoyConSide side, const StickMapping& mapping);
-
     bool ConnectSide(JoyConSide side, std::string& errorMessage);
     void DisconnectSide(JoyConSide side);
 

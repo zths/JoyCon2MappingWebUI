@@ -124,12 +124,10 @@ const hotspots = {
 };
 
 let latestState = null;
+let latestConfig = null;
+let configDirty = false;
 let lastRenderedVisualKey = "";
 let lastRenderedPopupKey = "";
-let mouseDraftDirty = { left: false, right: false };
-let mouseDraftConfig = { left: null, right: null };
-let serverDraftDirty = false;
-let serverDraftConfig = null;
 let selectedHotspotId = null;
 let toastTimer = null;
 let refreshTimer = null;
@@ -265,17 +263,11 @@ function getServerConfig(config) {
 }
 
 function getEffectiveMouseConfig(side) {
-  if (mouseDraftDirty[side] && mouseDraftConfig[side]) {
-    return structuredClone(mouseDraftConfig[side]);
-  }
-  return getMouseConfig(latestState?.config || {}, side);
+  return getMouseConfig(latestConfig || {}, side);
 }
 
 function getEffectiveServerConfig() {
-  if (serverDraftDirty && serverDraftConfig) {
-    return structuredClone(serverDraftConfig);
-  }
-  return getServerConfig(latestState?.config || {});
+  return getServerConfig(latestConfig || {});
 }
 
 function buildLocalUrl(port) {
@@ -284,7 +276,7 @@ function buildLocalUrl(port) {
 }
 
 function buildBrowserConfig() {
-  const base = structuredClone(latestState?.config || {});
+  const base = structuredClone(latestConfig || {});
   base.mouse = {
     left: getEffectiveMouseConfig("left"),
     right: getEffectiveMouseConfig("right")
@@ -344,15 +336,8 @@ function normalizeConfig(config) {
 }
 
 function applyConfigToUi(config) {
-  const normalized = normalizeConfig(config);
-  latestState = {
-    ...(latestState || {}),
-    config: normalized
-  };
-  mouseDraftDirty = { left: false, right: false };
-  mouseDraftConfig = { left: null, right: null };
-  serverDraftDirty = false;
-  serverDraftConfig = null;
+  latestConfig = normalizeConfig(config);
+  configDirty = true;
   lastRenderedVisualKey = "";
   lastRenderedPopupKey = "";
   renderInteractiveMapper(true);
@@ -388,7 +373,8 @@ function formatMouseStats(mouseStats) {
   ].join("\n");
 }
 
-function buildVisualRenderKey(config) {
+function buildVisualRenderKey() {
+  const config = latestConfig || {};
   return JSON.stringify({
     selectedHotspotId,
     mapping: config.mapping,
@@ -399,7 +385,8 @@ function buildVisualRenderKey(config) {
   });
 }
 
-function buildPopupRenderKey(config) {
+function buildPopupRenderKey() {
+  const config = latestConfig || {};
   return JSON.stringify({
     docked: dockedEditorMedia.matches,
     selectedHotspotId,
@@ -580,10 +567,10 @@ function createJoyCon(side, config) {
 }
 
 function renderInteractiveMapper(force = false) {
-  if (!latestState?.config) {
+  if (!latestConfig) {
     return;
   }
-  const nextKey = buildVisualRenderKey(latestState.config);
+  const nextKey = buildVisualRenderKey();
   if (!force && nextKey === lastRenderedVisualKey) {
     return;
   }
@@ -593,8 +580,8 @@ function renderInteractiveMapper(force = false) {
   stage.className = "joy-stage";
   const row = document.createElement("div");
   row.className = "joy-row";
-  row.appendChild(createJoyCon("left", latestState.config));
-  row.appendChild(createJoyCon("right", latestState.config));
+  row.appendChild(createJoyCon("left", latestConfig));
+  row.appendChild(createJoyCon("right", latestConfig));
   stage.appendChild(row);
   ui.interactiveMapper.appendChild(stage);
   lastRenderedVisualKey = nextKey;
@@ -652,6 +639,20 @@ function createActionEditor(currentValue, onChange) {
   return wrapper;
 }
 
+function makeButtonDraftPatch(side, buttonId, action) {
+  if (!latestConfig) {
+    return;
+  }
+  if (!latestConfig.mapping) {
+    latestConfig.mapping = { left: {}, right: {} };
+  }
+  if (!latestConfig.mapping[side]) {
+    latestConfig.mapping[side] = {};
+  }
+  latestConfig.mapping[side][buttonId] = action;
+  configDirty = true;
+}
+
 function createButtonEditor(hotspot) {
   const card = document.createElement("div");
   card.className = "editor-card";
@@ -660,7 +661,6 @@ function createButtonEditor(hotspot) {
   meta.className = "editor-meta";
   meta.innerHTML = `
     <span class="meta-chip">${t("buttonEditor.mappingId", { runtimeId: hotspot.runtimeId })}</span>
-    <span class="meta-chip">${t("buttonEditor.writeRuntime")}</span>
   `;
 
   const row = document.createElement("div");
@@ -668,16 +668,9 @@ function createButtonEditor(hotspot) {
   const label = document.createElement("div");
   label.className = "mapping-label";
   label.textContent = t("buttonEditor.mappingAction");
-  const editor = createActionEditor(getButtonAction(latestState.config, hotspot), async (action) => {
-    await api("/api/settings/mapping", {
-      method: "POST",
-      body: {
-        side: hotspot.side,
-        buttonId: hotspot.runtimeId,
-        action
-      }
-    });
-    await refreshState();
+  const editor = createActionEditor(getButtonAction(latestConfig, hotspot), (action) => {
+    makeButtonDraftPatch(hotspot.side, hotspot.runtimeId, action);
+    renderInteractiveMapper(true);
   });
   row.append(label, editor);
 
@@ -689,9 +682,12 @@ function createButtonEditor(hotspot) {
   };
 }
 
-async function updateStickConfig(side, patch) {
+function makeStickDraftPatch(side, patch) {
+  if (!latestConfig) {
+    return;
+  }
   const nextConfig = {
-    ...getStickConfig(latestState.config, side),
+    ...getStickConfig(latestConfig, side),
     ...patch
   };
   nextConfig.deadzone = Math.max(0, Math.min(32767, Math.round(Number(nextConfig.deadzone) || 0)));
@@ -703,18 +699,15 @@ async function updateStickConfig(side, patch) {
   nextConfig.fourWayHysteresisDegrees = Math.max(0, Math.min(45, Number(nextConfig.fourWayHysteresisDegrees) || 0));
   nextConfig.eightWayHysteresisDegrees = Math.max(0, Math.min(22.5, Number(nextConfig.eightWayHysteresisDegrees) || 0));
 
-  await api("/api/settings/stick", {
-    method: "POST",
-    body: {
-      side,
-      ...nextConfig
-    }
-  });
-  await refreshState();
+  if (!latestConfig.sticks) {
+    latestConfig.sticks = { left: {}, right: {} };
+  }
+  latestConfig.sticks[side] = nextConfig;
+  configDirty = true;
 }
 
 function createStickEditor(hotspot) {
-  const stickConfig = getStickConfig(latestState.config, hotspot.runtimeId);
+  const stickConfig = getStickConfig(latestConfig, hotspot.runtimeId);
 
   const infoCard = document.createElement("div");
   infoCard.className = "editor-card";
@@ -755,8 +748,8 @@ function createStickEditor(hotspot) {
     input.addEventListener("input", () => {
       value.textContent = input.value;
     });
-    input.addEventListener("change", async () => {
-      await updateStickConfig(hotspot.runtimeId, { [field.key]: Number(input.value) });
+    input.addEventListener("change", () => {
+      makeStickDraftPatch(hotspot.runtimeId, { [field.key]: Number(input.value) });
     });
 
     label.append(input, value);
@@ -769,8 +762,8 @@ function createStickEditor(hotspot) {
     const label = document.createElement("div");
     label.className = "mapping-label";
     label.textContent = t(entry.labelKey);
-    const editor = createActionEditor(stickConfig[entry.id] || "none", async (action) => {
-      await updateStickConfig(hotspot.runtimeId, { [entry.id]: action });
+    const editor = createActionEditor(stickConfig[entry.id] || "none", (action) => {
+      makeStickDraftPatch(hotspot.runtimeId, { [entry.id]: action });
     });
     row.append(label, editor);
     card.appendChild(row);
@@ -784,27 +777,28 @@ function createStickEditor(hotspot) {
 }
 
 function makeMouseDraftPatch(side, patch) {
-  mouseDraftConfig[side] = {
+  if (!latestConfig) {
+    return;
+  }
+  if (!latestConfig.mouse) {
+    latestConfig.mouse = { left: {}, right: {} };
+  }
+  latestConfig.mouse[side] = {
     ...getEffectiveMouseConfig(side),
     ...patch
   };
-  mouseDraftDirty[side] = true;
-  if (latestState?.config) {
-    latestState.config.mouse[side] = { ...mouseDraftConfig[side] };
-    lastRenderedPopupKey = buildPopupRenderKey(latestState.config);
-  }
+  configDirty = true;
 }
 
 function makeServerDraftPatch(patch) {
-  serverDraftConfig = {
+  if (!latestConfig) {
+    return;
+  }
+  latestConfig.server = {
     ...getEffectiveServerConfig(),
     ...patch
   };
-  serverDraftDirty = true;
-  if (latestState?.config) {
-    latestState.config.server = { ...serverDraftConfig };
-    lastRenderedPopupKey = buildPopupRenderKey(latestState.config);
-  }
+  configDirty = true;
 }
 
 function createMouseControl(labelText, input, valueNode) {
@@ -825,10 +819,8 @@ function createMouseEditor(hotspot) {
   const infoCard = document.createElement("div");
   infoCard.className = "editor-card";
   infoCard.innerHTML = `
-    <p class="muted">${t("mouseEditor.draftHint")}</p>
     <div class="editor-meta">
       <span class="meta-chip">${t(isLeft ? "mouseEditor.opticalTagLeft" : "mouseEditor.opticalTagRight")}</span>
-      <span class="meta-chip">${t("mouseEditor.sharedEditorTag")}</span>
     </div>
   `;
 
@@ -891,10 +883,8 @@ function createServerEditor() {
   const infoCard = document.createElement("div");
   infoCard.className = "editor-card";
   infoCard.innerHTML = `
-    <p class="muted">${t("serverEditor.draftHint")}</p>
     <div class="editor-meta">
       <span class="meta-chip">${t("serverEditor.localTag")}</span>
-      <span class="meta-chip">${t("serverEditor.sharedEditorTag")}</span>
     </div>
   `;
 
@@ -927,7 +917,9 @@ function createServerEditor() {
 
 function updateLocalizedStateText(forceConfigRender = false) {
   if (!latestState) {
-    setDockPlaceholder();
+    if (!latestConfig) {
+      setDockPlaceholder();
+    }
     return;
   }
 
@@ -968,7 +960,7 @@ function createEditorDescriptor(hotspot) {
 }
 
 function renderEditor(force = false) {
-  if (!latestState?.config) {
+  if (!latestConfig) {
     return;
   }
 
@@ -984,7 +976,7 @@ function renderEditor(force = false) {
     return;
   }
 
-  const nextKey = buildPopupRenderKey(latestState.config);
+  const nextKey = buildPopupRenderKey();
   if (!force && nextKey === lastRenderedPopupKey) {
     return;
   }
@@ -1019,22 +1011,18 @@ function closeEditor() {
 }
 
 function renderState(snapshot) {
-  const normalizedConfig = normalizeConfig(snapshot.config || {});
-  if (mouseDraftDirty.left && mouseDraftConfig.left) {
-    normalizedConfig.mouse.left = getEffectiveMouseConfig("left");
-  }
-  if (mouseDraftDirty.right && mouseDraftConfig.right) {
-    normalizedConfig.mouse.right = getEffectiveMouseConfig("right");
-  }
-  if (serverDraftDirty && serverDraftConfig) {
-    normalizedConfig.server = getEffectiveServerConfig();
-  }
-  latestState = {
-    ...snapshot,
-    config: normalizedConfig
-  };
-
+  latestState = snapshot;
   updateLocalizedStateText();
+}
+
+async function refreshConfig() {
+  const config = await api("/api/config");
+  latestConfig = normalizeConfig(config);
+  configDirty = false;
+  lastRenderedVisualKey = "";
+  lastRenderedPopupKey = "";
+  renderInteractiveMapper(true);
+  renderEditor(true);
 }
 
 async function refreshState() {
@@ -1078,11 +1066,8 @@ function bindActions() {
 
   ui.saveConfigBtn.addEventListener("click", async () => {
     const result = await saveAndApplyBrowserConfig(buildBrowserConfig());
-    mouseDraftDirty = { left: false, right: false };
-    mouseDraftConfig = { left: null, right: null };
-    serverDraftDirty = false;
-    serverDraftConfig = null;
     if (!result.redirected) {
+      await refreshConfig();
       await refreshState();
     }
   });
@@ -1114,6 +1099,7 @@ function bindActions() {
       applyConfigToUi(parsed);
       const result = await saveAndApplyBrowserConfig(buildBrowserConfig());
       if (!result.redirected) {
+        await refreshConfig();
         await refreshState();
       }
     } finally {
@@ -1141,6 +1127,7 @@ async function boot() {
     updateLocalizedStateText(true);
   });
   bindActions();
+  await refreshConfig();
   await refreshState();
   refreshTimer = setInterval(refreshState, 500);
 }

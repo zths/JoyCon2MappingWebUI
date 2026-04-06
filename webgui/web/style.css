@@ -575,11 +575,12 @@ pre {
 .joycon.left .btn-lr-arc {
   left: -2px;
   top: -2px;
-  width: 185px;
+  width: 182px;
   height: 80px;
   border-top: 18px solid rgba(170, 180, 195, 0.4);
   border-left: 18px solid rgba(170, 180, 195, 0.4);
   border-radius: 60px 0 0 0;
+  clip-path: path("M 0 0 L 182 0 L 182 18 L 48 18 Q 18 18, 18 48 L 18 80 L 0 80 Z");
 }
 
 .joycon.left .btn-zlzr-outer {
@@ -590,16 +591,18 @@ pre {
   border-top: 18px solid rgba(255, 255, 255, 0.25);
   border-left: 18px solid rgba(255, 255, 255, 0.25);
   border-radius: 80px 0 0 0;
+  clip-path: path("M 0 0 L 185 0 L 185 18 L 76 18 Q 18 18, 18 76 L 18 80 L 0 80 Z");
 }
 
 .joycon.right .btn-lr-arc {
   right: -2px;
   top: -2px;
-  width: 185px;
+  width: 182px;
   height: 80px;
   border-top: 18px solid rgba(170, 180, 195, 0.4);
   border-right: 18px solid rgba(170, 180, 195, 0.4);
   border-radius: 0 60px 0 0;
+  clip-path: path("M 0 0 L 182 0 L 182 80 L 164 80 L 164 48 Q 164 18, 134 18 L 0 18 Z");
 }
 
 .joycon.right .btn-zlzr-outer {
@@ -610,6 +613,7 @@ pre {
   border-top: 18px solid rgba(255, 255, 255, 0.25);
   border-right: 18px solid rgba(255, 255, 255, 0.25);
   border-radius: 0 80px 0 0;
+  clip-path: path("M 0 0 L 185 0 L 185 80 L 167 80 L 167 76 Q 167 18, 109 18 L 0 18 Z");
 }
 
 button.hotspot {
@@ -683,22 +687,26 @@ button.hotspot {
 }
 
 .hotspot-arc-l,
+.hotspot-arc-r {
+  background: rgba(125, 211, 252, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+
 .hotspot-arc-zl,
-.hotspot-arc-r,
 .hotspot-arc-zr {
-  background: rgba(125, 211, 252, 0.1) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background: rgba(125, 211, 252, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
 
 .hotspot-arc-l {
   left: -2px !important;
   top: -2px !important;
-  width: 185px !important;
+  width: 182px !important;
   height: 80px !important;
   border-top: 18px solid transparent !important;
   border-left: 18px solid transparent !important;
   border-radius: 60px 0 0 0;
-  clip-path: polygon(0 0, 100% 0, 100% 18px, 42px 18px, 18px 42px, 18px 100%, 0 100%);
+  clip-path: path("M 0 0 L 182 0 L 182 18 L 48 18 Q 18 18, 18 48 L 18 80 L 0 80 Z");
 }
 
 .hotspot-arc-zl {
@@ -709,19 +717,19 @@ button.hotspot {
   border-top: 18px solid transparent !important;
   border-left: 18px solid transparent !important;
   border-radius: 80px 0 0 0;
-  clip-path: polygon(0 0, 100% 0, 100% 18px, 62px 18px, 18px 62px, 18px 100%, 0 100%);
+  clip-path: path("M 0 0 L 185 0 L 185 18 L 76 18 Q 18 18, 18 76 L 18 80 L 0 80 Z");
 }
 
 .hotspot-arc-r {
   left: auto !important;
   right: -2px !important;
   top: -2px !important;
-  width: 185px !important;
+  width: 182px !important;
   height: 80px !important;
   border-top: 18px solid transparent !important;
   border-right: 18px solid transparent !important;
   border-radius: 0 60px 0 0;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, calc(100% - 18px) 100%, calc(100% - 18px) 42px, calc(100% - 42px) 18px, 0 18px);
+  clip-path: path("M 0 0 L 182 0 L 182 80 L 164 80 L 164 48 Q 164 18, 134 18 L 0 18 Z");
 }
 
 .hotspot-arc-zr {
@@ -733,7 +741,7 @@ button.hotspot {
   border-top: 18px solid transparent !important;
   border-right: 18px solid transparent !important;
   border-radius: 0 80px 0 0;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, calc(100% - 18px) 100%, calc(100% - 18px) 62px, calc(100% - 62px) 18px, 0 18px);
+  clip-path: path("M 0 0 L 185 0 L 185 80 L 167 80 L 167 76 Q 167 18, 109 18 L 0 18 Z");
 }
 
 .hotspot[class*="hotspot-arc-"]:hover,

@@ -187,7 +187,6 @@ void UpdateConfigFromJson(const json& root, AppConfig& config) {
 json RuntimeSnapshotToJson(const RuntimeSnapshot& snapshot) {
     return json{
         { "ok", true },
-        { "config", ConfigToJson(snapshot.config) },
         { "left", ControllerStateToJson(snapshot.left) },
         { "right", ControllerStateToJson(snapshot.right) },
         { "mouseStats", {

@@ -32,7 +32,7 @@
       },
       section: {
         interactiveMapping: "交互式映射",
-        interactiveMappingHint: "宽屏下左侧点选、右侧编辑；宽度不够时自动退回浮窗。按钮、摇杆和鼠标设置都走同一套编辑面板。",
+        interactiveMappingHint: "点击手柄上的按钮、摇杆或鼠标区域，即可在右侧编辑对应的映射设置。",
         realtimeStatus: "实时状态"
       },
       side: {
@@ -50,7 +50,6 @@
       },
       buttonEditor: {
         mappingId: "映射 ID: {runtimeId}",
-        writeRuntime: "点击后立即写入运行时",
         mappingAction: "映射动作",
         kickerLeft: "左 Joy-Con 2 按键",
         kickerRight: "右 Joy-Con 2 按键"
@@ -69,10 +68,8 @@
         kickerRight: "右摇杆设置"
       },
       mouseEditor: {
-        draftHint: "这里的修改会先保留在当前页面，点击顶部“保存并应用”后统一写入配置文件，并让运行时按文件重新加载。",
         opticalTagLeft: "左侧 Joy-Con 2 光学鼠标",
         opticalTagRight: "右侧 Joy-Con 2 光学鼠标",
-        sharedEditorTag: "与按键/摇杆共用同一编辑器",
         enableMapping: "启用鼠标映射",
         baseSensitivity: "基础灵敏度",
         acceleration: "加速度",
@@ -83,9 +80,7 @@
         kickerRight: "右鼠标设置"
       },
       serverEditor: {
-        draftHint: "这里的修改会先保留在当前页面，点击顶部“保存并应用”后统一写入配置文件，并在需要时跳转到新端口。",
         localTag: "本地 Web 服务",
-        sharedEditorTag: "与映射编辑共用同一编辑器",
         webPort: "Web UI 端口",
         kicker: "服务设置",
         title: "服务设置"
@@ -217,7 +212,7 @@
       },
       section: {
         interactiveMapping: "Interactive Mapping",
-        interactiveMappingHint: "On wide screens, select on the left and edit on the right; when space is tight it falls back to the modal. Buttons, sticks, and mouse settings all share the same editor.",
+        interactiveMappingHint: "Click a button, stick, or mouse zone on the controller to edit its mapping on the right.",
         realtimeStatus: "Live Status"
       },
       side: {
@@ -235,7 +230,6 @@
       },
       buttonEditor: {
         mappingId: "Mapping ID: {runtimeId}",
-        writeRuntime: "Writes to runtime immediately",
         mappingAction: "Mapped action",
         kickerLeft: "Left Joy-Con 2 Button",
         kickerRight: "Right Joy-Con 2 Button"
@@ -254,10 +248,8 @@
         kickerRight: "Right Stick Settings"
       },
       mouseEditor: {
-        draftHint: "Changes here stay on the current page first. Click \"Save & Apply\" to write them into the config file and reload the runtime from that file.",
         opticalTagLeft: "Left Joy-Con 2 optical mouse",
         opticalTagRight: "Right Joy-Con 2 optical mouse",
-        sharedEditorTag: "Uses the same editor as buttons and sticks",
         enableMapping: "Enable mouse mapping",
         baseSensitivity: "Base sensitivity",
         acceleration: "Acceleration",
@@ -268,9 +260,7 @@
         kickerRight: "Right Mouse Settings"
       },
       serverEditor: {
-        draftHint: "Changes here stay on the current page first. Click \"Save & Apply\" to write them into the config file and redirect if the port changed.",
         localTag: "Local Web server",
-        sharedEditorTag: "Uses the same editor surface as mapping settings",
         webPort: "Web UI port",
         kicker: "Server Settings",
         title: "Server Settings"
