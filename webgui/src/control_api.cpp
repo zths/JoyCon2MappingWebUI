@@ -253,15 +253,6 @@ void ControlApiServer::HandleClient(uintptr_t clientSocketValue) {
         response.body = UiSchemaJson().dump();
     } else if (method == "GET" && path == "/api/config") {
         response.body = ConfigToJson(runtime_.CurrentConfig()).dump();
-    } else if (method == "GET" && path == "/api/stats") {
-        const auto snapshot = runtime_.Snapshot();
-        response.body = json{
-            { "ok", true },
-            { "leftRateHz", snapshot.left.rateHz },
-            { "rightRateHz", snapshot.right.rateHz },
-            { "averageDispatchUs", snapshot.mouseStats.averageDispatchUs },
-            { "maxDispatchUs", snapshot.mouseStats.maxDispatchUs }
-        }.dump();
     } else if (method == "POST" && path == "/api/connect/left") {
         std::string error;
         const bool ok = runtime_.ConnectSide(JoyConSide::Left, error);
@@ -292,16 +283,6 @@ void ControlApiServer::HandleClient(uintptr_t clientSocketValue) {
         std::string error;
         const bool ok = configStore_.Save(runtime_.CurrentConfig(), error);
         response.body = ok ? json{ { "ok", true } }.dump() : json{ { "ok", false }, { "error", error } }.dump();
-    } else if (method == "POST" && path == "/api/config/load") {
-        auto config = runtime_.CurrentConfig();
-        std::string error;
-        const bool ok = configStore_.Load(config, error);
-        if (ok) {
-            runtime_.ApplyConfig(config);
-            response.body = json{ { "ok", true } }.dump();
-        } else {
-            response.body = json{ { "ok", false }, { "error", error } }.dump();
-        }
     } else if (method == "POST" && path == "/api/capture-key") {
         const CaptureKeyResult captured = CaptureKeyCustomToken(std::chrono::milliseconds(45000));
         if (captured.ok) {
