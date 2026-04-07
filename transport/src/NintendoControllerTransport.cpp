@@ -42,12 +42,6 @@ std::wstring ToLower(std::wstring value) {
 
 ControllerType GuessControllerType(const std::wstring& name) {
     const std::wstring lowered = ToLower(name);
-    if (lowered.find(L"gamecube") != std::wstring::npos || lowered.find(L"gc") != std::wstring::npos) {
-        return ControllerType::NSOGameCubeController;
-    }
-    if (lowered.find(L"pro") != std::wstring::npos) {
-        return ControllerType::ProController;
-    }
     if (lowered.find(L"left") != std::wstring::npos) {
         return ControllerType::LeftJoyCon;
     }

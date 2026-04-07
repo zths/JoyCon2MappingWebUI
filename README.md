@@ -78,6 +78,7 @@ The program will:
 - Start a local HTTP server
 - Open the browser automatically at `http://127.0.0.1:17777/` by default
 - Read and write `config.json` in the executable directory
+- HTTP API: `GET /api/config` (current config), `GET /api/ui-schema` (built-in defaults + ordered mappable action ids for the Web UI)
 
 The local service stops when the console application exits.
 
@@ -94,7 +95,11 @@ The main config structure now looks like this:
       "acceleration": 0.04,
       "exponent": 0.5,
       "maxGain": 2.5,
-      "distanceThreshold": 12
+      "distanceThreshold": 480,
+      "opticalTiltScroll": false,
+      "opticalTiltBlock": false,
+      "accelFlatMin": 2800,
+      "tiltScrollSensitivity": 0.08
     },
     "right": {
       "enabled": true,
@@ -102,7 +107,11 @@ The main config structure now looks like this:
       "acceleration": 0.04,
       "exponent": 0.5,
       "maxGain": 2.5,
-      "distanceThreshold": 12
+      "distanceThreshold": 480,
+      "opticalTiltScroll": false,
+      "opticalTiltBlock": false,
+      "accelFlatMin": 2800,
+      "tiltScrollSensitivity": 0.08
     }
   },
   "sticks": {
@@ -135,7 +144,7 @@ The main config structure now looks like this:
 }
 ```
 
-- `mouse.left` and `mouse.right` hold the optical mouse settings for each Joy-Con 2.
+- `mouse.left` and `mouse.right` hold the optical mouse settings for each Joy-Con 2. `distanceThreshold` is the raw 16-bit optical distance (report @0x16): movement is allowed when the reading is at or below this value (typical desk ~100–200, air ~3000; default 480). Legacy configs using `0`–`12` are remapped on load. Optional: `opticalTiltScroll`, `opticalTiltBlock` (mutually exclusive), `accelFlatMin`, `tiltScrollSensitivity`.
 - `sticks.left` and `sticks.right` hold directional mapping and stick decision parameters.
 - You can change the port from the frontend and the page will redirect automatically after saving.
 - If the config file does not exist, the application writes a default one before starting the Web server.

@@ -1,47 +1,22 @@
 const { t, setLanguage, getLanguage, subscribe: onLanguageChange } = window.I18n;
 
-const actionOptions = [
-  { value: "none", labelKey: "actions.none" },
-  { value: "mouse_left", labelKey: "actions.mouseLeft" },
-  { value: "mouse_right", labelKey: "actions.mouseRight" },
-  { value: "mouse_middle", labelKey: "actions.mouseMiddle" },
-  { value: "mouse_wheel_up", labelKey: "actions.mouseWheelUp" },
-  { value: "mouse_wheel_down", labelKey: "actions.mouseWheelDown" },
-  { value: "key_space", labelKey: "actions.keySpace" },
-  { value: "key_enter", labelKey: "actions.keyEnter" },
-  { value: "key_escape", labelKey: "actions.keyEscape" },
-  { value: "key_tab", labelKey: "actions.keyTab" },
-  { value: "key_ctrl", labelKey: "actions.keyCtrl" },
-  { value: "key_shift", labelKey: "actions.keyShift" },
-  { value: "key_alt", labelKey: "actions.keyAlt" },
-  { value: "key_up", labelKey: "actions.keyUp" },
-  { value: "key_down", labelKey: "actions.keyDown" },
-  { value: "key_left", labelKey: "actions.keyLeft" },
-  { value: "key_right", labelKey: "actions.keyRight" },
-  { value: "key_w", labelKey: "actions.keyW" },
-  { value: "key_a", labelKey: "actions.keyA" },
-  { value: "key_s", labelKey: "actions.keyS" },
-  { value: "key_d", labelKey: "actions.keyD" },
-  { value: "key_q", labelKey: "actions.keyQ" },
-  { value: "key_e", labelKey: "actions.keyE" },
-  { value: "key_r", labelKey: "actions.keyR" },
-  { value: "key_f", labelKey: "actions.keyF" },
-  { value: "key_1", labelKey: "actions.key1" },
-  { value: "key_2", labelKey: "actions.key2" },
-  { value: "key_3", labelKey: "actions.key3" },
-  { value: "key_4", labelKey: "actions.key4" },
-  { value: "key_5", labelKey: "actions.key5" },
-  { value: "key_custom", labelKey: "actions.keyCustom" }
-];
+/** Built-in defaults from `GET /api/ui-schema` (C++ `BuiltinDefaultConfig`); single source for merge + “configured?” diff. */
+let builtinDefaults = null;
+/** Mappable action ids from C++ `ActionsCatalogJson` (order preserved). */
+let actionIds = [];
 
 const ui = {
   leftStatus: document.getElementById("leftStatus"),
   rightStatus: document.getElementById("rightStatus"),
+  leftBatteryPill: document.getElementById("leftBatteryPill"),
+  rightBatteryPill: document.getElementById("rightBatteryPill"),
   leftName: document.getElementById("leftName"),
   rightName: document.getElementById("rightName"),
   leftStats: document.getElementById("leftStats"),
   rightStats: document.getElementById("rightStats"),
   mouseStats: document.getElementById("mouseStats"),
+  packetLabMount: document.getElementById("packetLabMount"),
+  packetLabDetails: document.getElementById("packetLabDetails"),
   interactiveMapper: document.getElementById("interactiveMapper"),
   languageSelect: document.getElementById("languageSelect"),
   serverSettingsBtn: document.getElementById("serverSettingsBtn"),
@@ -67,31 +42,6 @@ const stickDirectionEntries = [
   { id: "down", labelKey: "directions.down" },
   { id: "right", labelKey: "directions.right" }
 ];
-
-const defaultStickConfig = {
-  deadzone: 8000,
-  hysteresis: 1600,
-  diagonalUnlockRadius: 14000,
-  fourWayHysteresisDegrees: 12,
-  eightWayHysteresisDegrees: 8,
-  up: "none",
-  down: "none",
-  left: "none",
-  right: "none"
-};
-
-const defaultMouseConfig = {
-  enabled: true,
-  baseSensitivity: 0.10,
-  acceleration: 0.040,
-  exponent: 0.50,
-  maxGain: 2.50,
-  distanceThreshold: 12
-};
-
-const defaultServerConfig = {
-  port: 17777
-};
 
 const hotspots = {
   left: [
@@ -137,7 +87,16 @@ const dockedEditorMedia = window.matchMedia("(min-width: 1100px)");
 let stopActivePageKeyListen = null;
 
 function formatDistanceThreshold(value) {
-  return `0x${Number(value).toString(16)}`;
+  const n = Number(value);
+  return `${n} (0x${n.toString(16)})`;
+}
+
+function formatOpticalDistanceStat(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n === 0xffff) {
+    return "—";
+  }
+  return `${n} (0x${n.toString(16)})`;
 }
 
 function ensureToast() {
@@ -169,6 +128,16 @@ function showToast(message) {
 }
 
 
+function setInnerTextIfChanged(el, value) {
+  if (!el) {
+    return;
+  }
+  const s = value == null ? "" : String(value);
+  if (el.innerText !== s) {
+    el.innerText = s;
+  }
+}
+
 function translateStatusValue(status) {
   const normalized = String(status || "").toLowerCase();
   return t(`statusValue.${normalized}`, {}, status || "-");
@@ -190,6 +159,50 @@ function applyStatusPillState(element, status) {
   }
 
   element.classList.add("status-unknown");
+}
+
+const BATTERY_PILL_LEVELS = ["battery-pill--idle", "battery-pill--ok", "battery-pill--mid", "battery-pill--low"];
+
+/**
+ * @param {HTMLElement | null} el
+ * @param {*} sideState
+ */
+function applyBatteryPill(el, sideState) {
+  if (!el) {
+    return;
+  }
+  el.classList.remove(...BATTERY_PILL_LEVELS, "battery-pill--charging");
+  const st = String(sideState?.status || "").toLowerCase();
+  if (st !== "connected") {
+    el.classList.add("battery-pill--idle");
+    setInnerTextIfChanged(el, t("batteryPill.unavailable"));
+    return;
+  }
+  const mv = sideState.batteryVoltageMv;
+  if (!mv) {
+    el.classList.add("battery-pill--idle");
+    setInnerTextIfChanged(el, t("batteryPill.noVoltage"));
+    return;
+  }
+  const est = Number(sideState.batteryPercentApprox);
+  const pctPart = Number.isFinite(est) ? ` (~${est}%)` : "";
+  let line = `${mv} mV${pctPart}`;
+  if (sideState.chargerCableConnected) {
+    line += ` · ${t("batteryPill.charging")}`;
+    el.classList.add("battery-pill--charging");
+  }
+  setInnerTextIfChanged(el, line);
+  if (Number.isFinite(est)) {
+    if (est < 20) {
+      el.classList.add("battery-pill--low");
+    } else if (est < 55) {
+      el.classList.add("battery-pill--mid");
+    } else {
+      el.classList.add("battery-pill--ok");
+    }
+  } else {
+    el.classList.add("battery-pill--ok");
+  }
 }
 
 function applyStaticTranslations() {
@@ -255,47 +268,60 @@ function keyboardCodeToCustomToken(code) {
   return null;
 }
 
-function getStickConfig(config, side) {
-  const direct = side === "left" ? config.leftStick : config.rightStick;
-  const nested = config.sticks?.[side];
-  const source = nested || direct || {};
-  return {
-    deadzone: Number(source.deadzone ?? defaultStickConfig.deadzone),
-    hysteresis: Number(source.hysteresis ?? defaultStickConfig.hysteresis),
-    diagonalUnlockRadius: Number(source.diagonalUnlockRadius ?? source.cardinalLockRadius ?? defaultStickConfig.diagonalUnlockRadius),
-    fourWayHysteresisDegrees: Number(source.fourWayHysteresisDegrees ?? defaultStickConfig.fourWayHysteresisDegrees),
-    eightWayHysteresisDegrees: Number(source.eightWayHysteresisDegrees ?? defaultStickConfig.eightWayHysteresisDegrees),
-    up: source.up ?? defaultStickConfig.up,
-    down: source.down ?? defaultStickConfig.down,
-    left: source.left ?? defaultStickConfig.left,
-    right: source.right ?? defaultStickConfig.right
-  };
+function actionIdToLabelKey(id) {
+  if (id === "none") {
+    return "actions.none";
+  }
+  const parts = id.split("_");
+  const camel = parts.map((p, i) => (i === 0 ? p : p.charAt(0).toUpperCase() + p.slice(1))).join("");
+  return `actions.${camel}`;
 }
 
-function getMouseConfig(config, side) {
-  const source = config.mouse?.[side] || {};
-  return {
-    enabled: source.enabled ?? defaultMouseConfig.enabled,
-    baseSensitivity: Number(source.baseSensitivity ?? defaultMouseConfig.baseSensitivity),
-    acceleration: Number(source.acceleration ?? defaultMouseConfig.acceleration),
-    exponent: Number(source.exponent ?? defaultMouseConfig.exponent),
-    maxGain: Number(source.maxGain ?? defaultMouseConfig.maxGain),
-    distanceThreshold: Number(source.distanceThreshold ?? defaultMouseConfig.distanceThreshold)
-  };
+function getActionOptions() {
+  return actionIds.map((value) => ({ value, labelKey: actionIdToLabelKey(value) }));
+}
+
+function defaultServerPortFallback() {
+  const p = Number(builtinDefaults?.server?.port);
+  return Number.isFinite(p) ? Math.max(1, Math.min(65535, Math.round(p))) : 17777;
 }
 
 function normalizePort(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
-    return defaultServerConfig.port;
+    return defaultServerPortFallback();
   }
   return Math.max(1, Math.min(65535, Math.round(parsed)));
 }
 
 function getServerConfig(config) {
   return {
-    port: normalizePort(config.server?.port ?? defaultServerConfig.port)
+    port: normalizePort(config.server?.port ?? builtinDefaults?.server?.port ?? defaultServerPortFallback())
   };
+}
+
+function getStickConfig(config, side) {
+  const direct = side === "left" ? config.leftStick : config.rightStick;
+  const nested = config.sticks?.[side];
+  const d = builtinDefaults?.sticks?.[side] || {};
+  const source = nested || direct || {};
+  return {
+    deadzone: Number(source.deadzone ?? d.deadzone),
+    hysteresis: Number(source.hysteresis ?? d.hysteresis),
+    diagonalUnlockRadius: Number(source.diagonalUnlockRadius ?? source.cardinalLockRadius ?? d.diagonalUnlockRadius),
+    fourWayHysteresisDegrees: Number(source.fourWayHysteresisDegrees ?? d.fourWayHysteresisDegrees),
+    eightWayHysteresisDegrees: Number(source.eightWayHysteresisDegrees ?? d.eightWayHysteresisDegrees),
+    up: source.up ?? d.up,
+    down: source.down ?? d.down,
+    left: source.left ?? d.left,
+    right: source.right ?? d.right
+  };
+}
+
+function getMouseConfig(config, side) {
+  const d = builtinDefaults?.mouse?.[side] || {};
+  const source = config.mouse?.[side] || {};
+  return { ...d, ...source };
 }
 
 
@@ -313,7 +339,7 @@ function buildBrowserConfig() {
 
 async function saveAndApplyBrowserConfig(config) {
   const nextPort = getServerConfig(config).port;
-  const currentPort = window.location.port ? normalizePort(window.location.port) : defaultServerConfig.port;
+  const currentPort = window.location.port ? normalizePort(window.location.port) : defaultServerPortFallback();
   await api("/api/config/replace", {
     method: "POST",
     body: config
@@ -337,20 +363,25 @@ async function saveAndApplyBrowserConfig(config) {
 }
 
 function normalizeConfig(config) {
+  if (!config) {
+    return null;
+  }
+  const d = builtinDefaults || {};
+  const merge = (base, over) => ({ ...(base || {}), ...(over || {}) });
   return {
     ...config,
     mouse: {
-      left: getMouseConfig(config, "left"),
-      right: getMouseConfig(config, "right")
-    },
-    server: getServerConfig(config),
-    mapping: {
-      left: config.mapping?.left || {},
-      right: config.mapping?.right || {}
+      left: merge(d.mouse?.left, config.mouse?.left),
+      right: merge(d.mouse?.right, config.mouse?.right)
     },
     sticks: {
-      left: getStickConfig(config, "left"),
-      right: getStickConfig(config, "right")
+      left: merge(d.sticks?.left, config.sticks?.left),
+      right: merge(d.sticks?.right, config.sticks?.right)
+    },
+    server: merge(d.server, config.server),
+    mapping: {
+      left: merge(d.mapping?.left, config.mapping?.left),
+      right: merge(d.mapping?.right, config.mapping?.right)
     }
   };
 }
@@ -363,6 +394,13 @@ function applyConfigToUi(config) {
   renderEditor(true);
 }
 
+function fmtImu(v) {
+  if (v === undefined || v === null || Number.isNaN(Number(v))) {
+    return "—";
+  }
+  return String(v);
+}
+
 function formatControllerStats(sideState) {
   return [
     `${t("stats.controller.status")}: ${translateStatusValue(sideState.status)}`,
@@ -371,10 +409,43 @@ function formatControllerStats(sideState) {
     `${t("stats.controller.rateHz")}: ${sideState.rateHz.toFixed(2)}`,
     `${t("stats.controller.avgIntervalMs")}: ${sideState.averageIntervalMs.toFixed(3)}`,
     `${t("stats.controller.buttonBits")}: 0x${Number(sideState.buttonBits || 0).toString(16)}`,
-    `${t("stats.controller.opticalDistance")}: 0x${Number(sideState.opticalDistance || 0).toString(16)}`,
+    `${t("stats.controller.opticalDistance")}: ${formatOpticalDistanceStat(sideState.opticalDistance)}`,
     `${t("stats.controller.optical")}: (${sideState.opticalX}, ${sideState.opticalY})`,
     `${t("stats.controller.leftStick")}: (${sideState.stickLX}, ${sideState.stickLY})`,
     `${t("stats.controller.rightStick")}: (${sideState.stickRX}, ${sideState.stickRY})`,
+    sideState.batteryVoltageMv
+      ? (() => {
+          const est = Number(sideState.batteryPercentApprox);
+          const estPart = Number.isFinite(est)
+            ? ` (~${est}%, ${t("stats.controller.batteryEstimate")})`
+            : "";
+          return `${t("stats.controller.battery")}: ${sideState.batteryVoltageMv} mV${estPart}, ${t(
+            "stats.controller.batteryCurrent"
+          )}: ${sideState.batteryCurrentRaw} (~${(sideState.batteryCurrentRaw / 100).toFixed(2)} mA)`;
+        })()
+      : `${t("stats.controller.battery")}: —`,
+    sideState.status === "connected" && typeof sideState.chargerBits67 === "number"
+      ? `${t("stats.controller.charger")}: ${
+          sideState.chargerCableConnected
+            ? t("stats.controller.chargerConnected")
+            : sideState.chargerBits67 === 3
+              ? t("stats.controller.chargerDisconnected")
+              : `${t("stats.controller.chargerBits")}=${sideState.chargerBits67}`
+        }`
+      : "",
+    sideState.temperatureValid
+      ? `${t("stats.controller.temperature")}: ${Number(sideState.temperatureCelsius).toFixed(1)} °C (${t("stats.controller.temperatureRaw")} ${sideState.temperatureRaw})`
+      : sideState.side === "left" && sideState.temperatureRaw !== undefined && sideState.temperatureRaw !== null
+        ? `${t("stats.controller.temperature")}: raw ${sideState.temperatureRaw} (${t("stats.controller.temperatureLeftNote")})`
+        : `${t("stats.controller.temperature")}: —`,
+    sideState.side === "left" && sideState.status === "connected"
+      ? `${t("stats.controller.temperatureSecondary")}: ${Number(sideState.temperatureSecondaryRaw ?? 0)} (${t(
+          "stats.controller.temperatureSecondaryLeftNote"
+        )})`
+      : "",
+    `${t("stats.controller.accelerometer")}: (${fmtImu(sideState.accelX)}, ${fmtImu(sideState.accelY)}, ${fmtImu(sideState.accelZ)})`,
+    `${t("stats.controller.gyroscope")}: (${fmtImu(sideState.gyroX)}, ${fmtImu(sideState.gyroY)}, ${fmtImu(sideState.gyroZ)})`,
+    `${t("stats.controller.magnetometer")}: (${fmtImu(sideState.magnetometerX)}, ${fmtImu(sideState.magnetometerY)}, ${fmtImu(sideState.magnetometerZ)})`,
     sideState.error ? `${t("stats.controller.error")}: ${sideState.error}` : ""
   ].filter(Boolean).join("\n");
 }
@@ -386,9 +457,9 @@ function formatMouseStats(mouseStats) {
     `${t("stats.mouse.gatedPackets")}: ${mouseStats.gatedPackets}`,
     `${t("stats.mouse.avgDispatchUs")}: ${mouseStats.averageDispatchUs.toFixed(2)}`,
     `${t("stats.mouse.maxDispatchUs")}: ${mouseStats.maxDispatchUs.toFixed(2)}`,
-    `${t("stats.mouse.distanceLast")}: 0x${Number(mouseStats.lastDistance).toString(16)}`,
-    `${t("stats.mouse.distanceMin")}: 0x${Number(mouseStats.minDistance).toString(16)}`,
-    `${t("stats.mouse.distanceMax")}: 0x${Number(mouseStats.maxDistance).toString(16)}`
+    `${t("stats.mouse.distanceLast")}: ${formatOpticalDistanceStat(mouseStats.lastDistance)}`,
+    `${t("stats.mouse.distanceMin")}: ${formatOpticalDistanceStat(mouseStats.minDistance)}`,
+    `${t("stats.mouse.distanceMax")}: ${formatOpticalDistanceStat(mouseStats.maxDistance)}`
   ].join("\n");
 }
 
@@ -472,24 +543,17 @@ function isHotspotConfigured(config, hotspot) {
     return getButtonAction(config, hotspot) !== "none";
   }
   if (hotspot.type === "mouse") {
-    const mouseConfig = getMouseConfig(config, hotspot.runtimeId);
-    return mouseConfig.enabled !== defaultMouseConfig.enabled
-      || mouseConfig.baseSensitivity !== defaultMouseConfig.baseSensitivity
-      || mouseConfig.acceleration !== defaultMouseConfig.acceleration
-      || mouseConfig.exponent !== defaultMouseConfig.exponent
-      || mouseConfig.maxGain !== defaultMouseConfig.maxGain
-      || mouseConfig.distanceThreshold !== defaultMouseConfig.distanceThreshold;
+    const cur = getMouseConfig(config, hotspot.runtimeId);
+    const base = getMouseConfig({ mouse: { [hotspot.runtimeId]: {} } }, hotspot.runtimeId);
+    return JSON.stringify(cur) !== JSON.stringify(base);
   }
   const stickConfig = getStickConfig(config, hotspot.runtimeId);
+  const baseStick = getStickConfig({ sticks: { [hotspot.runtimeId]: {} } }, hotspot.runtimeId);
   const pressId = hotspot.runtimeId === "left" ? "L3" : "R3";
   const pressMapped = (config.mapping?.[hotspot.side]?.[pressId] || "none") !== "none";
   return pressMapped
     || [stickConfig.up, stickConfig.down, stickConfig.left, stickConfig.right].some((value) => value !== "none")
-    || stickConfig.deadzone !== defaultStickConfig.deadzone
-    || stickConfig.hysteresis !== defaultStickConfig.hysteresis
-    || stickConfig.diagonalUnlockRadius !== defaultStickConfig.diagonalUnlockRadius
-    || stickConfig.fourWayHysteresisDegrees !== defaultStickConfig.fourWayHysteresisDegrees
-    || stickConfig.eightWayHysteresisDegrees !== defaultStickConfig.eightWayHysteresisDegrees;
+    || JSON.stringify(stickConfig) !== JSON.stringify(baseStick);
 }
 
 function makeActionBtn(className, text) {
@@ -585,7 +649,7 @@ function createJoyCon(side, config) {
 }
 
 function renderInteractiveMapper(force = false) {
-  if (!latestConfig) {
+  if (!latestConfig || !builtinDefaults) {
     return;
   }
   const nextKey = buildVisualRenderKey();
@@ -616,7 +680,7 @@ function createActionEditor(currentValue, onChange) {
 
   const select = document.createElement("select");
   const currentIsCustom = currentValue.startsWith("key_custom:");
-  actionOptions.forEach((option) => {
+  getActionOptions().forEach((option) => {
     const node = document.createElement("option");
     node.value = option.value;
     node.textContent = t(option.labelKey);
@@ -987,12 +1051,60 @@ function createMouseEditor(hotspot) {
   });
   grid.appendChild(createMouseControl(t("mouseEditor.enableMapping"), enabledInput));
 
+  const tiltScrollInput = document.createElement("input");
+  tiltScrollInput.type = "checkbox";
+  tiltScrollInput.checked = mouseConfig.opticalTiltScroll && !mouseConfig.opticalTiltBlock;
+  const tiltBlockInput = document.createElement("input");
+  tiltBlockInput.type = "checkbox";
+  tiltBlockInput.checked = !!mouseConfig.opticalTiltBlock;
+  tiltScrollInput.addEventListener("change", () => {
+    if (tiltScrollInput.checked) {
+      tiltBlockInput.checked = false;
+      makeMouseDraftPatch(hotspot.runtimeId, { opticalTiltScroll: true, opticalTiltBlock: false });
+    } else {
+      makeMouseDraftPatch(hotspot.runtimeId, { opticalTiltScroll: false });
+    }
+  });
+  tiltBlockInput.addEventListener("change", () => {
+    if (tiltBlockInput.checked) {
+      tiltScrollInput.checked = false;
+      makeMouseDraftPatch(hotspot.runtimeId, { opticalTiltBlock: true, opticalTiltScroll: false });
+    } else {
+      makeMouseDraftPatch(hotspot.runtimeId, { opticalTiltBlock: false });
+    }
+  });
+  grid.appendChild(createMouseControl(t("mouseEditor.opticalTiltScroll"), tiltScrollInput));
+  grid.appendChild(createMouseControl(t("mouseEditor.opticalTiltBlock"), tiltBlockInput));
+
   const rangeFields = [
     { labelKey: "mouseEditor.baseSensitivity", key: "baseSensitivity", min: "0.02", max: "1.00", step: "0.01", format: (value) => Number(value).toFixed(2) },
     { labelKey: "mouseEditor.acceleration", key: "acceleration", min: "0.00", max: "0.20", step: "0.005", format: (value) => Number(value).toFixed(3) },
     { labelKey: "mouseEditor.exponent", key: "exponent", min: "0.20", max: "1.50", step: "0.01", format: (value) => Number(value).toFixed(2) },
     { labelKey: "mouseEditor.maxGain", key: "maxGain", min: "0.50", max: "8.00", step: "0.10", format: (value) => Number(value).toFixed(2) },
-    { labelKey: "mouseEditor.distanceThreshold", key: "distanceThreshold", min: "0", max: "12", step: "1", format: (value) => formatDistanceThreshold(value) }
+    {
+      labelKey: "mouseEditor.distanceThreshold",
+      key: "distanceThreshold",
+      min: "50",
+      max: "4095",
+      step: "10",
+      format: (value) => formatDistanceThreshold(value)
+    },
+    {
+      labelKey: "mouseEditor.accelFlatMin",
+      key: "accelFlatMin",
+      min: "1500",
+      max: "6000",
+      step: "50",
+      format: (value) => String(Math.round(Number(value)))
+    },
+    {
+      labelKey: "mouseEditor.tiltScrollSensitivity",
+      key: "tiltScrollSensitivity",
+      min: "0.01",
+      max: "2.00",
+      step: "0.01",
+      format: (value) => Number(value).toFixed(2)
+    }
   ];
 
   rangeFields.forEach((field) => {
@@ -1060,20 +1172,70 @@ function createServerEditor() {
   };
 }
 
+function updatePacketLabDisplay() {
+  if (!ui.packetLabMount || !window.PacketLab) {
+    return;
+  }
+  if (ui.packetLabDetails && !ui.packetLabDetails.open) {
+    return;
+  }
+  if (!latestState) {
+    ui.packetLabMount.replaceChildren();
+    if (typeof window.PacketLab.invalidatePacketLabMount === "function") {
+      window.PacketLab.invalidatePacketLabMount(ui.packetLabMount);
+    }
+    if (typeof window.PacketLab.clearSnapshots === "function") {
+      window.PacketLab.clearSnapshots();
+    }
+    return;
+  }
+  const strings = {
+    noData: t("packetLab.noData"),
+    bytesLabelFor: (n) => t("packetLab.bytesLabel", { n: String(n) }),
+    sectionHex: t("packetLab.sectionHex"),
+    sectionValues: t("packetLab.sectionValues"),
+    sectionBits: t("packetLab.sectionBits"),
+    diffHint: t("packetLab.diffHint"),
+    pinHint: t("packetLab.pinHint")
+  };
+  window.PacketLab.syncPacketLab(
+    ui.packetLabMount,
+    `${t("side.left")} · ${t("device.left")}`,
+    `${t("side.right")} · ${t("device.right")}`,
+    latestState.left,
+    latestState.right,
+    strings
+  );
+}
+
 function updateStateDisplay() {
   if (!latestState) {
+    applyBatteryPill(ui.leftBatteryPill, null);
+    applyBatteryPill(ui.rightBatteryPill, null);
+    if (ui.packetLabDetails?.open && ui.packetLabMount) {
+      ui.packetLabMount.replaceChildren();
+      if (window.PacketLab && typeof window.PacketLab.invalidatePacketLabMount === "function") {
+        window.PacketLab.invalidatePacketLabMount(ui.packetLabMount);
+      }
+    }
+    if (ui.packetLabDetails?.open && window.PacketLab && typeof window.PacketLab.clearSnapshots === "function") {
+      window.PacketLab.clearSnapshots();
+    }
     return;
   }
 
-  ui.leftStatus.textContent = translateStatusValue(latestState.left.status);
-  ui.rightStatus.textContent = translateStatusValue(latestState.right.status);
+  setInnerTextIfChanged(ui.leftStatus, translateStatusValue(latestState.left.status));
+  setInnerTextIfChanged(ui.rightStatus, translateStatusValue(latestState.right.status));
   applyStatusPillState(ui.leftStatus, latestState.left.status);
   applyStatusPillState(ui.rightStatus, latestState.right.status);
-  ui.leftName.textContent = latestState.left.deviceName || t("device.notConnected");
-  ui.rightName.textContent = latestState.right.deviceName || t("device.notConnected");
-  ui.leftStats.textContent = formatControllerStats(latestState.left);
-  ui.rightStats.textContent = formatControllerStats(latestState.right);
-  ui.mouseStats.textContent = formatMouseStats(latestState.mouseStats);
+  applyBatteryPill(ui.leftBatteryPill, latestState.left);
+  applyBatteryPill(ui.rightBatteryPill, latestState.right);
+  setInnerTextIfChanged(ui.leftName, latestState.left.deviceName || t("device.notConnected"));
+  setInnerTextIfChanged(ui.rightName, latestState.right.deviceName || t("device.notConnected"));
+  setInnerTextIfChanged(ui.leftStats, formatControllerStats(latestState.left));
+  setInnerTextIfChanged(ui.rightStats, formatControllerStats(latestState.right));
+  setInnerTextIfChanged(ui.mouseStats, formatMouseStats(latestState.mouseStats));
+  updatePacketLabDisplay();
 }
 
 function createEditorDescriptor(hotspot) {
@@ -1096,7 +1258,7 @@ function createEditorDescriptor(hotspot) {
 }
 
 function renderEditor(force = false) {
-  if (!latestConfig) {
+  if (!latestConfig || !builtinDefaults) {
     return;
   }
 
@@ -1150,6 +1312,12 @@ function closeEditor() {
 function renderState(snapshot) {
   latestState = snapshot;
   updateStateDisplay();
+}
+
+async function refreshUiSchema() {
+  const schema = await api("/api/ui-schema");
+  builtinDefaults = schema.defaults || null;
+  actionIds = Array.isArray(schema.actions) ? schema.actions : [];
 }
 
 async function refreshConfig() {
@@ -1254,6 +1422,27 @@ function bindActions() {
       closeEditor();
     }
   });
+
+  if (ui.packetLabDetails) {
+    ui.packetLabDetails.addEventListener("toggle", () => {
+      if (!ui.packetLabDetails.open) {
+        if (ui.packetLabMount) {
+          ui.packetLabMount.replaceChildren();
+          if (window.PacketLab && typeof window.PacketLab.invalidatePacketLabMount === "function") {
+            window.PacketLab.invalidatePacketLabMount(ui.packetLabMount);
+          }
+        }
+        if (window.PacketLab && typeof window.PacketLab.clearSnapshots === "function") {
+          window.PacketLab.clearSnapshots();
+        }
+        return;
+      }
+      if (window.PacketLab && typeof window.PacketLab.clearSnapshots === "function") {
+        window.PacketLab.clearSnapshots();
+      }
+      updatePacketLabDisplay();
+    });
+  }
 }
 
 async function boot() {
@@ -1265,6 +1454,7 @@ async function boot() {
     renderEditor(true);
   });
   bindActions();
+  await refreshUiSchema();
   await refreshConfig();
   await refreshState();
   refreshTimer = setInterval(refreshState, 500);

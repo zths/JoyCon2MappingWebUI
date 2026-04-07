@@ -14,6 +14,8 @@ It does not depend on `ViGEm`, and it does not inject keyboard or mouse input. I
   - BLE scan/connect/configure/start-stream APIs
 - `NintendoControllerProtocol.h`
   - raw packet decoding APIs
+- `JoyCon2InputReportButtons.h`
+  - Joy-Con 2 input report 24-bit button field masks (shared by decode and host mapping)
 
 ## Library responsibilities
 

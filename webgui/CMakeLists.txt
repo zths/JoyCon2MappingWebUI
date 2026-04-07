@@ -15,6 +15,7 @@ add_executable(JoyCon2Mapper
   src/config_store.cpp
   src/key_capture_win.cpp
   src/mapper_runtime.cpp
+  src/sendinput_output_sink.cpp
 )
 
 target_include_directories(JoyCon2Mapper

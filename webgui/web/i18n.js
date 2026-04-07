@@ -27,6 +27,11 @@
         right: "右 Joy-Con 2",
         notConnected: "未连接"
       },
+      batteryPill: {
+        unavailable: "电池 —",
+        noVoltage: "电池 无读数",
+        charging: "充电中"
+      },
       button: {
         connect: "连接",
         disconnect: "断开"
@@ -34,7 +39,21 @@
       section: {
         interactiveMapping: "交互式映射",
         interactiveMappingHint: "点击手柄上的按钮、摇杆或鼠标区域，即可在右侧编辑对应的映射设置。",
-        realtimeStatus: "实时状态"
+        realtimeStatus: "实时状态",
+        packetLab: "原始包解析",
+        packetLabHint:
+          "最近一包输入报告：十六进制 / 数值 / 位，小端多字节。相对上一包有变化时格内红色约 10 秒内变淡（左右独立；首包不着色）。"
+      },
+      packetLab: {
+        noData: "无数据（未连接或尚未收到有效包）",
+        bytesLabel: "长度 {n} 字节",
+        sectionHex: "十六进制",
+        sectionValues: "数值检视",
+        sectionBits: "位检视",
+        diffHint:
+          "变化提示：与上一包相比有差异的格子会记一次时间戳，红色在约 10 秒内逐渐变淡直到消失；再次变化会重新记时。位检视里仅翻转的比特格记变化。数值/位表左侧竖条表示该行内曾有变化。",
+        pinHint:
+          "绿色固定：点击十六进制字节、数值格或位格可固定/再点解除（固定后不再参与红色闪烁）。点击十六进制行左侧 offset，或数值/位表第一列，可固定/解除整行。"
       },
       side: {
         left: "左侧",
@@ -90,7 +109,11 @@
         acceleration: "加速度",
         exponent: "指数",
         maxGain: "最大增益",
-        distanceThreshold: "光学距离阈值",
+        distanceThreshold: "近距离上限 (raw u16)",
+        opticalTiltScroll: "倾斜时光学改滚轮",
+        opticalTiltBlock: "倾斜时禁用光学鼠标",
+        accelFlatMin: "平放：|X| 须大于 |Y|、|Z|（左负右正），此项为 |X| 下限",
+        tiltScrollSensitivity: "倾斜滚轮灵敏度",
         kickerLeft: "左鼠标设置",
         kickerRight: "右鼠标设置"
       },
@@ -178,6 +201,21 @@
           optical: "光学坐标",
           leftStick: "左摇杆",
           rightStick: "右摇杆",
+          battery: "电池",
+          batteryEstimate: "电压粗算",
+          batteryCurrent: "电流",
+          temperature: "温度",
+          temperatureRaw: "raw",
+          temperatureLeftNote: "左@0x2C u16 LE，°C 未定标",
+          temperatureSecondary: "副温度相关 raw",
+          temperatureSecondaryLeftNote: "左@0x2E s16 LE，次级",
+          magnetometer: "磁力计 (s16 LE @0x19)",
+          accelerometer: "加速度计 (raw s16 LE @0x30)",
+          gyroscope: "陀螺仪 (raw s16 LE @0x36)",
+          charger: "充电线",
+          chargerConnected: "已接（0x07 b7–b6 为 0）",
+          chargerDisconnected: "未接（bits=3）",
+          chargerBits: "bits",
           error: "错误"
         },
         mouse: {
@@ -224,6 +262,11 @@
         right: "Right Joy-Con 2",
         notConnected: "Not connected"
       },
+      batteryPill: {
+        unavailable: "Battery —",
+        noVoltage: "Battery: no mV",
+        charging: "Charging"
+      },
       button: {
         connect: "Connect",
         disconnect: "Disconnect"
@@ -231,7 +274,21 @@
       section: {
         interactiveMapping: "Interactive Mapping",
         interactiveMappingHint: "Click a button, stick, or mouse zone on the controller to edit its mapping on the right.",
-        realtimeStatus: "Live Status"
+        realtimeStatus: "Live Status",
+        packetLab: "Raw packet lab",
+        packetLabHint:
+          "Last input report: hex / values / bits, little-endian. Red change tint fades over ~10s vs the previous packet (per side; none on first packet)."
+      },
+      packetLab: {
+        noData: "No data (disconnected or no valid packet yet)",
+        bytesLabel: "{n} bytes",
+        sectionHex: "Hex",
+        sectionValues: "Values",
+        sectionBits: "Bits",
+        diffHint:
+          "Change cue: each cell stores a timestamp when its value differs from the previous packet; red tint fades to nothing over ~10s (refreshes if it changes again). Bit grid: only flipped bits. Values/bits: left bar = row had a recent change.",
+        pinHint:
+          "Green pin: click a hex byte, value cell, or bit cell to pin/unpin (pinned cells skip red flashes). Click the hex line offset, or the first column in values/bits tables, to pin/unpin the whole row."
       },
       side: {
         left: "Left",
@@ -287,7 +344,11 @@
         acceleration: "Acceleration",
         exponent: "Exponent",
         maxGain: "Max gain",
-        distanceThreshold: "Optical distance threshold",
+        distanceThreshold: "Near distance cap (raw u16)",
+        opticalTiltScroll: "Tilted: optical → scroll wheel",
+        opticalTiltBlock: "Tilted: disable optical mouse",
+        accelFlatMin: "Flat: |X|>|Y|,|Z| (L neg / R pos); min |X|",
+        tiltScrollSensitivity: "Tilt scroll sensitivity",
         kickerLeft: "Left Mouse Settings",
         kickerRight: "Right Mouse Settings"
       },
@@ -375,6 +436,21 @@
           optical: "optical",
           leftStick: "left_stick",
           rightStick: "right_stick",
+          battery: "Battery",
+          batteryEstimate: "mV estimate",
+          batteryCurrent: "current",
+          temperature: "Temperature",
+          temperatureRaw: "raw",
+          temperatureLeftNote: "L @0x2C u16 LE, degC TBD",
+          temperatureSecondary: "Secondary thermal raw",
+          temperatureSecondaryLeftNote: "L @0x2E s16 LE",
+          magnetometer: "Magnetometer (s16 LE @0x19)",
+          accelerometer: "Accelerometer (raw s16 LE @0x30)",
+          gyroscope: "Gyroscope (raw s16 LE @0x36)",
+          charger: "Charger cable",
+          chargerConnected: "connected (0x07 b7–b6 = 0)",
+          chargerDisconnected: "unplugged (bits = 3)",
+          chargerBits: "bits",
           error: "error"
         },
         mouse: {

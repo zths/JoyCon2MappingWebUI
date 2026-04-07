@@ -51,7 +51,10 @@
           <div class="device-grid">
             <div class="device-card">
               <h3 data-i18n="device.left">左 Joy-Con 2</h3>
-              <div id="leftStatus" class="status-pill" data-i18n="statusValue.disconnected">disconnected</div>
+              <div class="device-status-pills">
+                <div id="leftBatteryPill" class="status-pill battery-pill battery-pill--idle" aria-live="polite">—</div>
+                <div id="leftStatus" class="status-pill" data-i18n="statusValue.disconnected">disconnected</div>
+              </div>
               <p id="leftName" data-i18n="device.notConnected">未连接</p>
               <div class="actions">
                 <button id="connectLeftBtn" data-i18n="button.connect">连接</button>
@@ -60,7 +63,10 @@
             </div>
             <div class="device-card">
               <h3 data-i18n="device.right">右 Joy-Con 2</h3>
-              <div id="rightStatus" class="status-pill" data-i18n="statusValue.disconnected">disconnected</div>
+              <div class="device-status-pills">
+                <div id="rightBatteryPill" class="status-pill battery-pill battery-pill--idle" aria-live="polite">—</div>
+                <div id="rightStatus" class="status-pill" data-i18n="statusValue.disconnected">disconnected</div>
+              </div>
               <p id="rightName" data-i18n="device.notConnected">未连接</p>
               <div class="actions">
                 <button id="connectRightBtn" data-i18n="button.connect">连接</button>
@@ -108,6 +114,16 @@
             </div>
           </div>
         </section>
+
+        <section class="card packet-lab-card">
+          <details id="packetLabDetails" class="packet-lab-details">
+            <summary class="packet-lab-summary">
+              <span class="packet-lab-summary-title" data-i18n="section.packetLab">原始包解析</span>
+              <span class="muted packet-lab-summary-hint" data-i18n="section.packetLabHint"></span>
+            </summary>
+            <div id="packetLabMount" class="packet-lab-grid"></div>
+          </details>
+        </section>
       </main>
     </div>
 
@@ -126,6 +142,7 @@
     </div>
 
     <script src="/i18n.js"></script>
+    <script src="/packet_lab.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

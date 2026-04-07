@@ -7,6 +7,24 @@ namespace {
 
 using json = nlohmann::json;
 
+/// Coarse UI % from reported pack mV (not coulomb-count SoC; load / charge / temperature skew terminal voltage).
+///
+/// Joy-Con 2 (Nintendo Japan official support specs): rated voltage 3.89 V, 500 mAh, 1.95 Wh
+/// (3.89 V × 0.5 Ah ≈ 1.945 Wh). The linear map below is only a rough visual guide, not OEM SoC.
+/// Full-charge reading from BLE @0x1F is often well below 4.2 V; field sample: ~3702 mV when full.
+int ApproxBatteryPercentFromMv(uint16_t mv) {
+    constexpr int kMvEmpty = 3200;
+    constexpr int kMvFull = 3702;
+    if (mv <= kMvEmpty) {
+        return 0;
+    }
+    if (mv >= kMvFull) {
+        return 100;
+    }
+    const int span = kMvFull - kMvEmpty;
+    return static_cast<int>((static_cast<long>(mv - kMvEmpty) * 100L + span / 2) / span);
+}
+
 std::string NarrowLossy(const std::wstring& value) {
     std::string result;
     result.reserve(value.size());
@@ -48,7 +66,11 @@ json MouseSettingsToJson(const MouseSettings& settings) {
         { "acceleration", settings.acceleration },
         { "exponent", settings.exponent },
         { "maxGain", settings.maxGain },
-        { "distanceThreshold", static_cast<int>(settings.distanceThreshold) }
+        { "distanceThreshold", static_cast<int>(settings.distanceThreshold) },
+        { "opticalTiltScroll", settings.opticalTiltScroll },
+        { "opticalTiltBlock", settings.opticalTiltBlock },
+        { "accelFlatMin", settings.accelFlatMinAbs },
+        { "tiltScrollSensitivity", settings.tiltScrollSensitivity }
     };
 }
 
@@ -63,8 +85,26 @@ MouseSettings MouseSettingsFromJson(const json& value, const MouseSettings& fall
     settings.acceleration = value.value("acceleration", settings.acceleration);
     settings.exponent = value.value("exponent", settings.exponent);
     settings.maxGain = value.value("maxGain", settings.maxGain);
-    settings.distanceThreshold = static_cast<uint8_t>(
-        std::clamp(value.value("distanceThreshold", static_cast<int>(settings.distanceThreshold)), 0, 12));
+    settings.opticalTiltScroll = value.value("opticalTiltScroll", settings.opticalTiltScroll);
+    settings.opticalTiltBlock = value.value("opticalTiltBlock", settings.opticalTiltBlock);
+    if (settings.opticalTiltBlock && settings.opticalTiltScroll) {
+        settings.opticalTiltScroll = false;
+    }
+    settings.accelFlatMinAbs = std::clamp(
+        value.value("accelFlatMin", settings.accelFlatMinAbs),
+        500,
+        8000);
+    settings.tiltScrollSensitivity = std::clamp(
+        value.value("tiltScrollSensitivity", settings.tiltScrollSensitivity),
+        0.005,
+        2.0);
+
+    const int distanceIn = value.value("distanceThreshold", static_cast<int>(settings.distanceThreshold));
+    if (distanceIn >= 0 && distanceIn <= 12) {
+        settings.distanceThreshold = static_cast<uint16_t>(std::clamp(80 + distanceIn * 35, 50, 650));
+    } else {
+        settings.distanceThreshold = static_cast<uint16_t>(std::clamp(distanceIn, 50, 4095));
+    }
     return settings;
 }
 
@@ -110,7 +150,12 @@ StickMapping StickMappingFromJson(const json& value, const StickMapping& fallbac
 }
 
 json ControllerStateToJson(const ControllerStateSnapshot& state) {
-    return json{
+    json rawBytes = json::array();
+    for (uint8_t b : state.lastRawPacket) {
+        rawBytes.push_back(b);
+    }
+
+    json root{
         { "side", SideToString(state.side) },
         { "status", ConnectionStatusToString(state.status) },
         { "error", state.error },
@@ -125,8 +170,31 @@ json ControllerStateToJson(const ControllerStateSnapshot& state) {
         { "stickLX", state.decoded.leftStick.x },
         { "stickLY", state.decoded.leftStick.y },
         { "stickRX", state.decoded.rightStick.x },
-        { "stickRY", state.decoded.rightStick.y }
+        { "stickRY", state.decoded.rightStick.y },
+        { "batteryVoltageMv", state.decoded.batteryVoltageMv },
+        { "batteryPercentApprox",
+            state.decoded.batteryVoltageMv > 0 ? json(ApproxBatteryPercentFromMv(state.decoded.batteryVoltageMv)) : json(nullptr) },
+        { "batteryCurrentRaw", state.decoded.batteryCurrentRaw },
+        { "batteryCurrent_mA", static_cast<double>(state.decoded.batteryCurrentRaw) / 100.0 },
+        { "magnetometerX", state.decoded.magnetometerX },
+        { "magnetometerY", state.decoded.magnetometerY },
+        { "magnetometerZ", state.decoded.magnetometerZ },
+        { "accelX", state.decoded.motion.accelX },
+        { "accelY", state.decoded.motion.accelY },
+        { "accelZ", state.decoded.motion.accelZ },
+        { "gyroX", state.decoded.motion.gyroX },
+        { "gyroY", state.decoded.motion.gyroY },
+        { "gyroZ", state.decoded.motion.gyroZ },
+        { "temperatureValid", state.decoded.temperatureValid },
+        { "temperatureCelsius", state.decoded.temperatureValid ? json(state.decoded.temperatureCelsius) : json(nullptr) },
+        { "temperatureRaw", state.decoded.temperatureRaw },
+        { "temperatureSecondaryRaw", state.decoded.temperatureSecondaryRaw },
+        { "chargerBits67", state.decoded.chargerBits67 },
+        { "chargerCableConnected", state.decoded.chargerCableConnected },
+        { "raw", std::move(rawBytes) },
+        { "rawLength", state.lastRawPacket.size() }
     };
+    return root;
 }
 
 } // namespace
@@ -199,6 +267,104 @@ json RuntimeSnapshotToJson(const RuntimeSnapshot& snapshot) {
             { "minDistance", static_cast<int>(snapshot.mouseStats.minDistance) },
             { "maxDistance", static_cast<int>(snapshot.mouseStats.maxDistance) }
         } }
+    };
+}
+
+AppConfig BuiltinDefaultConfig() {
+    AppConfig config;
+    config.mouse.left = {};
+    config.mouse.right = {};
+    config.mapping.left = {
+        { "Capture", "key_tab" },
+        { "L", "mouse_left" },
+        { "Minus", "key_escape" },
+        { "SL", "key_q" },
+        { "SR", "key_e" },
+        { "ZL", "mouse_right" },
+    };
+    config.mapping.right = {
+        { "A", "key_custom:x" },
+        { "B", "key_custom:z" },
+        { "C", "mouse_middle" },
+        { "Home", "key_custom:s" },
+        { "Plus", "key_a" },
+        { "R", "mouse_left" },
+        { "SL", "key_space" },
+        { "SR", "key_e" },
+        { "X", "key_custom:c" },
+        { "Y", "key_custom:v" },
+        { "ZR", "mouse_right" },
+    };
+    config.sticks.left = {
+        .deadzone = 8000,
+        .hysteresis = 1600,
+        .diagonalUnlockRadius = 14000,
+        .fourWayHysteresisDegrees = 12.0,
+        .eightWayHysteresisDegrees = 8.0,
+        .up = "key_w",
+        .down = "key_s",
+        .left = "key_a",
+        .right = "key_d",
+    };
+    config.sticks.right = {
+        .deadzone = 8000,
+        .hysteresis = 1600,
+        .diagonalUnlockRadius = 14000,
+        .fourWayHysteresisDegrees = 12.0,
+        .eightWayHysteresisDegrees = 8.0,
+        .up = "key_up",
+        .down = "key_down",
+        .left = "key_left",
+        .right = "key_right",
+    };
+    return config;
+}
+
+json ActionsCatalogJson() {
+    static constexpr const char* kActionIds[] = {
+        "none",
+        "mouse_left",
+        "mouse_right",
+        "mouse_middle",
+        "mouse_wheel_up",
+        "mouse_wheel_down",
+        "key_space",
+        "key_enter",
+        "key_escape",
+        "key_tab",
+        "key_ctrl",
+        "key_shift",
+        "key_alt",
+        "key_up",
+        "key_down",
+        "key_left",
+        "key_right",
+        "key_w",
+        "key_a",
+        "key_s",
+        "key_d",
+        "key_q",
+        "key_e",
+        "key_r",
+        "key_f",
+        "key_1",
+        "key_2",
+        "key_3",
+        "key_4",
+        "key_5",
+        "key_custom",
+    };
+    json arr = json::array();
+    for (const char* id : kActionIds) {
+        arr.push_back(id);
+    }
+    return arr;
+}
+
+json UiSchemaJson() {
+    return json{
+        { "defaults", ConfigToJson(BuiltinDefaultConfig()) },
+        { "actions", ActionsCatalogJson() }
     };
 }
 

@@ -209,6 +209,55 @@ body {
   color: #fca5a5;
 }
 
+.device-status-pills {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  justify-self: end;
+}
+
+.battery-pill {
+  font-weight: 500;
+  font-size: 0.8125rem;
+  max-width: min(100%, 220px);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid transparent;
+}
+
+.battery-pill--idle {
+  background: rgba(107, 114, 128, 0.22);
+  border-color: rgba(156, 163, 175, 0.28);
+  color: #d1d5db;
+}
+
+.battery-pill--ok {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(74, 222, 128, 0.28);
+  color: #bbf7d0;
+}
+
+.battery-pill--mid {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(251, 191, 36, 0.32);
+  color: #fde68a;
+}
+
+.battery-pill--low {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(248, 113, 113, 0.32);
+  color: #fecaca;
+}
+
+.battery-pill--charging {
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
 .device-card .actions {
   grid-column: 1 / -1;
 }
@@ -1005,5 +1054,382 @@ button.hotspot {
   .topbar {
     display: grid;
   }
+}
+
+.packet-lab-details {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.packet-lab-details > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 0 0 12px 1.1rem;
+  user-select: none;
+  position: relative;
+}
+
+.packet-lab-details > summary::before {
+  content: "▸";
+  position: absolute;
+  left: 0;
+  top: 0.15rem;
+  font-size: 0.75em;
+  opacity: 0.65;
+  transition: transform 0.12s ease;
+}
+
+.packet-lab-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.packet-lab-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.packet-lab-details > summary::marker {
+  content: "";
+}
+
+.packet-lab-summary-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.packet-lab-summary-hint {
+  display: block;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  max-width: 65ch;
+}
+
+.packet-lab-details[open] > summary {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.packet-lab-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .packet-lab-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.packet-lab-side h3 {
+  margin-top: 0;
+}
+
+.packet-lab-meta {
+  margin: 0 0 8px;
+}
+
+.packet-lab-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.packet-lab-block {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px 12px;
+  background: var(--card);
+}
+
+.packet-lab-block-title {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.packet-lab-diff-hint {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.packet-hex {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-x: auto;
+  white-space: normal;
+  color: var(--text);
+}
+
+.packet-hex-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.packet-hex-col-off {
+  width: 4.25rem;
+}
+
+.packet-hex-col-nib {
+  width: 1.85rem;
+}
+
+.packet-hex-table thead th {
+  color: var(--muted);
+  font-weight: 600;
+  user-select: none;
+  cursor: default;
+  padding: 4px 3px 6px;
+  text-align: center;
+  vertical-align: bottom;
+  border-bottom: 1px solid var(--border);
+}
+
+.packet-hex-table th.packet-hex-th-off,
+.packet-hex-table td.packet-off {
+  text-align: left;
+  padding-left: 4px;
+  padding-right: 6px;
+}
+
+.packet-hex-table tbody td {
+  padding: 2px 3px;
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid transparent;
+}
+
+.packet-hex-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.packet-hex-table td.packet-byte {
+  border-radius: 3px;
+}
+
+.packet-byte--hint {
+  color: var(--left-accent);
+  font-weight: 600;
+}
+
+/* Packet Lab: click to pin green — skips red diff flash (JS + CSS) */
+.packet-hex-tbody td.packet-byte,
+.packet-hex-tbody td.packet-off,
+.packet-lab-table tbody td,
+.packet-bit-table tbody td {
+  cursor: pointer;
+}
+
+.packet-hex-table td.packet-byte.packet-lab-pin,
+.packet-lab-table td.packet-lab-pin,
+.packet-bit-table td.packet-lab-pin {
+  background-color: rgba(34, 197, 94, 0.32) !important;
+  box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.55) !important;
+  animation: none !important;
+}
+
+.packet-byte.packet-byte--hint.packet-lab-pin {
+  color: var(--text);
+}
+
+.packet-hex-row.packet-lab-pin td.packet-byte {
+  background-color: rgba(34, 197, 94, 0.26) !important;
+  box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.4) !important;
+  animation: none !important;
+}
+
+.packet-hex-row.packet-lab-pin td.packet-off {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.packet-lab-table tr.packet-lab-pin td {
+  background-color: rgba(34, 197, 94, 0.24) !important;
+  box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.38) !important;
+  animation: none !important;
+}
+
+.packet-lab-table tr.packet-lab-pin td:first-child {
+  background-color: rgba(34, 197, 94, 0.3) !important;
+}
+
+.packet-bit-table tr.packet-lab-pin td {
+  background-color: rgba(34, 197, 94, 0.24) !important;
+  box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.38) !important;
+  animation: none !important;
+}
+
+/* Packet Lab: red “recent change” tint is applied via inline style (10s decay in JS) */
+
+.packet-lab-diff-hint + .packet-lab-pin-hint {
+  margin-top: 4px;
+}
+
+.packet-lab-pin-hint {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.packet-lab-block .packet-hex--panel {
+  margin: 0;
+}
+
+.packet-lab-block .packet-lab-scroll--panel {
+  margin: 0;
+  border-radius: 8px;
+  border-color: var(--border);
+}
+
+.packet-off {
+  color: var(--muted);
+}
+
+.packet-lab-subtitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 12px 0 6px;
+  color: var(--text);
+}
+
+.packet-lab-scroll {
+  overflow-x: auto;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.packet-lab-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 11px;
+}
+
+.packet-lab-table th,
+.packet-lab-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 3px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.packet-lab-table th:first-child,
+.packet-lab-table td:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: var(--card);
+  z-index: 1;
+}
+
+.packet-lab-table thead th {
+  background: var(--joy-shell);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.packet-row--hint {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.packet-bit-details {
+  margin: 12px 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px 12px;
+  background: var(--panel);
+}
+
+.packet-bit-summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+  user-select: none;
+}
+
+.packet-bit-summary::-webkit-details-marker {
+  margin-inline-end: 8px;
+}
+
+.packet-bit-hint {
+  margin: 8px 0 10px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.packet-bit-scroll {
+  max-height: min(50vh, 480px);
+}
+
+.packet-bit-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 11px;
+}
+
+.packet-bit-table th,
+.packet-bit-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 2px 6px;
+  text-align: center;
+}
+
+.packet-bit-table th:first-child,
+.packet-bit-table td:first-child,
+.packet-bit-table .packet-bit-hex {
+  text-align: left;
+}
+
+.packet-bit-table thead th {
+  background: var(--joy-shell);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.packet-bit-th {
+  min-width: 1.5em;
+}
+
+.packet-bit-cell--1 {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.packet-bit-cell--0 {
+  color: var(--muted);
+}
+
+.packet-bit-row--hint {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.packet-bit-table .packet-off {
+  position: static;
+  background: transparent;
 }
 

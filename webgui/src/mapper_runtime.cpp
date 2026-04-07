@@ -1,4 +1,8 @@
 #include "mapper_runtime.h"
+#include "config_json.h"
+#include "sendinput_output_sink.h"
+
+#include "JoyCon2InputReportButtons.h"
 
 #include <winrt/base.h>
 
@@ -17,62 +21,37 @@
 namespace joycon::webgui {
 namespace {
 
-constexpr uint32_t LEFT_SL_MASK = 0x0020;
-constexpr uint32_t LEFT_SR_MASK = 0x0010;
-constexpr uint32_t LEFT_ZL_MASK = 0x0080;
-constexpr uint32_t LEFT_L_MASK = 0x0040;
-constexpr uint32_t LEFT_MINUS_MASK = 0x0100;
-constexpr uint32_t LEFT_STICK_MASK = 0x0800;
-constexpr uint32_t LEFT_UP_MASK = 0x0002;
-constexpr uint32_t LEFT_DOWN_MASK = 0x0001;
-constexpr uint32_t LEFT_LEFT_MASK = 0x0008;
-constexpr uint32_t LEFT_RIGHT_MASK = 0x0004;
-constexpr uint32_t LEFT_CAPTURE_MASK = 0x2000;
-
-constexpr uint32_t RIGHT_ZR_MASK = 0x8000;
-constexpr uint32_t RIGHT_R_MASK = 0x4000;
-constexpr uint32_t RIGHT_PLUS_MASK = 0x0002;
-constexpr uint32_t RIGHT_SL_MASK = 0x2000;
-constexpr uint32_t RIGHT_SR_MASK = 0x1000;
-constexpr uint32_t RIGHT_Y_MASK = 0x0100;
-constexpr uint32_t RIGHT_B_MASK = 0x0400;
-constexpr uint32_t RIGHT_X_MASK = 0x0200;
-constexpr uint32_t RIGHT_A_MASK = 0x0800;
-constexpr uint32_t RIGHT_STICK_MASK = 0x0004;
-constexpr uint32_t RIGHT_HOME_MASK = 0x0010;
-constexpr uint32_t RIGHT_C_MASK = 0x0040;
-
 const std::vector<std::pair<std::string, uint32_t>>& LeftButtonMap() {
     static const std::vector<std::pair<std::string, uint32_t>> buttons = {
-        { "ZL", LEFT_ZL_MASK },
-        { "L", LEFT_L_MASK },
-        { "Minus", LEFT_MINUS_MASK },
-        { "L3", LEFT_STICK_MASK },
-        { "Up", LEFT_UP_MASK },
-        { "Down", LEFT_DOWN_MASK },
-        { "Left", LEFT_LEFT_MASK },
-        { "Right", LEFT_RIGHT_MASK },
-        { "SL", LEFT_SL_MASK },
-        { "SR", LEFT_SR_MASK },
-        { "Capture", LEFT_CAPTURE_MASK },
+        { "ZL", joycon::protocol::JoyCon2LeftReport24::ZL },
+        { "L", joycon::protocol::JoyCon2LeftReport24::L },
+        { "Minus", joycon::protocol::JoyCon2LeftReport24::Minus },
+        { "L3", joycon::protocol::JoyCon2LeftReport24::StickPress },
+        { "Up", joycon::protocol::JoyCon2LeftReport24::Up },
+        { "Down", joycon::protocol::JoyCon2LeftReport24::Down },
+        { "Left", joycon::protocol::JoyCon2LeftReport24::Left },
+        { "Right", joycon::protocol::JoyCon2LeftReport24::Right },
+        { "SL", joycon::protocol::JoyCon2LeftReport24::SL },
+        { "SR", joycon::protocol::JoyCon2LeftReport24::SR },
+        { "Capture", joycon::protocol::JoyCon2LeftReport24::Capture },
     };
     return buttons;
 }
 
 const std::vector<std::pair<std::string, uint32_t>>& RightButtonMap() {
     static const std::vector<std::pair<std::string, uint32_t>> buttons = {
-        { "ZR", RIGHT_ZR_MASK },
-        { "R", RIGHT_R_MASK },
-        { "Plus", RIGHT_PLUS_MASK },
-        { "R3", RIGHT_STICK_MASK },
-        { "A", RIGHT_A_MASK },
-        { "B", RIGHT_B_MASK },
-        { "X", RIGHT_X_MASK },
-        { "Y", RIGHT_Y_MASK },
-        { "SL", RIGHT_SL_MASK },
-        { "SR", RIGHT_SR_MASK },
-        { "Home", RIGHT_HOME_MASK },
-        { "C", RIGHT_C_MASK },
+        { "ZR", joycon::protocol::JoyCon2RightReport24::ZR },
+        { "R", joycon::protocol::JoyCon2RightReport24::R },
+        { "Plus", joycon::protocol::JoyCon2RightReport24::Plus },
+        { "R3", joycon::protocol::JoyCon2RightReport24::StickPress },
+        { "A", joycon::protocol::JoyCon2RightReport24::A },
+        { "B", joycon::protocol::JoyCon2RightReport24::B },
+        { "X", joycon::protocol::JoyCon2RightReport24::X },
+        { "Y", joycon::protocol::JoyCon2RightReport24::Y },
+        { "SL", joycon::protocol::JoyCon2RightReport24::SL },
+        { "SR", joycon::protocol::JoyCon2RightReport24::SR },
+        { "Home", joycon::protocol::JoyCon2RightReport24::Home },
+        { "C", joycon::protocol::JoyCon2RightReport24::C },
     };
     return buttons;
 }
@@ -144,75 +123,8 @@ WORD ParseCustomVirtualKey(const std::string& value) {
     return 0;
 }
 
-void SendRelativeMouseMove(int dx, int dy) {
-    INPUT input = {};
-    input.type = INPUT_MOUSE;
-    input.mi.dx = dx;
-    input.mi.dy = dy;
-    input.mi.dwFlags = MOUSEEVENTF_MOVE;
-    SendInput(1, &input, sizeof(INPUT));
-}
-
-void SendMouseButton(DWORD downFlag, DWORD upFlag, bool pressed) {
-    INPUT input = {};
-    input.type = INPUT_MOUSE;
-    input.mi.dwFlags = pressed ? downFlag : upFlag;
-    SendInput(1, &input, sizeof(INPUT));
-}
-
-void SendMouseWheel(int32_t delta) {
-    INPUT input = {};
-    input.type = INPUT_MOUSE;
-    input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-    input.mi.mouseData = static_cast<DWORD>(delta);
-    SendInput(1, &input, sizeof(INPUT));
-}
-
-bool IsExtendedVirtualKey(WORD virtualKey) {
-    switch (virtualKey) {
-    case VK_RMENU:
-    case VK_RCONTROL:
-    case VK_INSERT:
-    case VK_DELETE:
-    case VK_HOME:
-    case VK_END:
-    case VK_PRIOR:
-    case VK_NEXT:
-    case VK_UP:
-    case VK_DOWN:
-    case VK_LEFT:
-    case VK_RIGHT:
-    case VK_NUMLOCK:
-    case VK_DIVIDE:
-    case VK_SNAPSHOT:
-        return true;
-    default:
-        return false;
-    }
-}
-
-void SendKeyboardKey(WORD virtualKey, bool pressed) {
-    INPUT input = {};
-    input.type = INPUT_KEYBOARD;
-    UINT scanCode = MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC_EX);
-    if (scanCode == 0) {
-        scanCode = MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC);
-    }
-
-    DWORD flags = pressed ? 0 : KEYEVENTF_KEYUP;
-    if (scanCode != 0) {
-        input.ki.wVk = 0;
-        input.ki.wScan = static_cast<WORD>(scanCode & 0xFF);
-        flags |= KEYEVENTF_SCANCODE;
-        if (IsExtendedVirtualKey(virtualKey) || (scanCode & 0xFF00) == 0xE000 || (scanCode & 0xFF00) == 0xE100) {
-            flags |= KEYEVENTF_EXTENDEDKEY;
-        }
-    } else {
-        input.ki.wVk = virtualKey;
-    }
-
-    input.ki.dwFlags = flags;
-    SendInput(1, &input, sizeof(INPUT));
+std::string MakeSinkInputId(JoyConSide side, const std::string& inputId) {
+    return (side == JoyConSide::Left ? "L:" : "R:") + inputId;
 }
 
 int ClampStickDeadzone(int deadzone) {
@@ -389,72 +301,23 @@ std::string ActionForInputId(const AppConfig& config, JoyConSide side, const std
     return "none";
 }
 
-AppConfig DefaultConfig() {
-    AppConfig config;
-    config.mouse.left = {};
-    config.mouse.right = {};
-    config.mapping.left = {
-        { "Capture", "key_tab" },
-        { "L", "mouse_left" },
-        { "Minus", "key_escape" },
-        { "SL", "key_q" },
-        { "SR", "key_e" },
-        { "ZL", "mouse_right" },
-    };
-    config.mapping.right = {
-        { "A", "key_custom:x" },
-        { "B", "key_custom:z" },
-        { "C", "mouse_middle" },
-        { "Home", "key_custom:s" },
-        { "Plus", "key_a" },
-        { "R", "mouse_left" },
-        { "SL", "key_space" },
-        { "SR", "key_e" },
-        { "X", "key_custom:c" },
-        { "Y", "key_custom:v" },
-        { "ZR", "mouse_right" },
-    };
-    config.sticks.left = {
-        .deadzone = 8000,
-        .hysteresis = 1600,
-        .diagonalUnlockRadius = 14000,
-        .fourWayHysteresisDegrees = 12.0,
-        .eightWayHysteresisDegrees = 8.0,
-        .up = "key_w",
-        .down = "key_s",
-        .left = "key_a",
-        .right = "key_d",
-    };
-    config.sticks.right = {
-        .deadzone = 8000,
-        .hysteresis = 1600,
-        .diagonalUnlockRadius = 14000,
-        .fourWayHysteresisDegrees = 12.0,
-        .eightWayHysteresisDegrees = 8.0,
-        .up = "key_up",
-        .down = "key_down",
-        .left = "key_left",
-        .right = "key_right",
-    };
-    return config;
-}
-
 } // namespace
 
 MapperRuntime::MapperRuntime()
-    : config_(DefaultConfig()) {
+    : MapperRuntime(std::make_shared<SendInputOutputSink>()) {}
+
+MapperRuntime::MapperRuntime(std::shared_ptr<IOutputSink> outputSink)
+    : outputSink_(std::move(outputSink)),
+      config_(BuiltinDefaultConfig()) {
     leftSlot_.side = JoyConSide::Left;
     rightSlot_.side = JoyConSide::Right;
-    keyRepeatSettings_ = QueryKeyRepeatSettings();
     StartMouseOutputThread();
-    StartKeyRepeatThread();
 }
 
 MapperRuntime::~MapperRuntime() {
     DisconnectSide(JoyConSide::Left);
     DisconnectSide(JoyConSide::Right);
     StopMouseOutputThread();
-    StopKeyRepeatThread();
 }
 
 void MapperRuntime::ApplyConfig(const AppConfig& config) {
@@ -492,6 +355,7 @@ bool MapperRuntime::ConnectSide(JoyConSide side, std::string& errorMessage) {
         slot.intervalSumUs = 0.0;
         slot.lastPacketTime = {};
         slot.previousInputs.clear();
+        slot.lastRawPacket.clear();
     }
 
     try {
@@ -519,7 +383,7 @@ bool MapperRuntime::ConnectSide(JoyConSide side, std::string& errorMessage) {
                 if (!state.valid) {
                     return;
                 }
-                HandleDecodedState(side, state);
+                HandleDecodedState(side, state, packet.data);
             });
 
         if (!started) {
@@ -570,6 +434,7 @@ void MapperRuntime::DisconnectSide(JoyConSide side) {
         slot.lastPacketTime = {};
         slot.previousInputs.clear();
         slot.mouseAccumulator = {};
+        slot.lastRawPacket.clear();
     }
 
     if (connection) {
@@ -651,7 +516,7 @@ void MapperRuntime::StartMouseOutputThread() {
             const auto queueTime = std::max(leftSlot_.mouseAccumulator.lastEnqueueTime, rightSlot_.mouseAccumulator.lastEnqueueTime);
             lock.unlock();
 
-            SendRelativeMouseMove(moveX, moveY);
+            outputSink_->MouseMoveRel(moveX, moveY);
 
             lock.lock();
             ++mouseStats_.injectedMoves;
@@ -681,70 +546,20 @@ void MapperRuntime::StopMouseOutputThread() {
     }
 }
 
-void MapperRuntime::StartKeyRepeatThread() {
-    keyRepeatThread_ = std::thread([this]() {
-        std::unique_lock lock(mutex_);
-        while (true) {
-            if (!running_ && activeKeyRepeats_.empty()) {
-                break;
-            }
+void MapperRuntime::HandleDecodedState(
+    JoyConSide side,
+    const protocol::DecodedInputState& state,
+    const std::vector<uint8_t>& rawPacket) {
 
-            if (activeKeyRepeats_.empty()) {
-                keyRepeatCondition_.wait(lock, [this]() {
-                    return !running_ || !activeKeyRepeats_.empty();
-                });
-                continue;
-            }
-
-            auto nextIt = std::min_element(
-                activeKeyRepeats_.begin(),
-                activeKeyRepeats_.end(),
-                [](const auto& lhs, const auto& rhs) {
-                    return lhs.second.nextRepeatTime < rhs.second.nextRepeatTime;
-                });
-            const auto wakeTime = nextIt->second.nextRepeatTime;
-            if (keyRepeatCondition_.wait_until(lock, wakeTime, [this, wakeTime]() {
-                    return !running_ || activeKeyRepeats_.empty() ||
-                        std::any_of(activeKeyRepeats_.begin(), activeKeyRepeats_.end(), [wakeTime](const auto& entry) {
-                            return entry.second.nextRepeatTime < wakeTime;
-                        });
-                })) {
-                continue;
-            }
-
-            const auto now = std::chrono::steady_clock::now();
-            std::vector<uint16_t> repeatKeys;
-            for (auto& [inputId, state] : activeKeyRepeats_) {
-                if (state.nextRepeatTime <= now) {
-                    repeatKeys.push_back(state.virtualKey);
-                    state.nextRepeatTime = now + keyRepeatSettings_.repeatInterval;
-                }
-            }
-
-            lock.unlock();
-            for (const uint16_t virtualKey : repeatKeys) {
-                SendKeyboardKey(static_cast<WORD>(virtualKey), true);
-            }
-            lock.lock();
-        }
-    });
-}
-
-void MapperRuntime::StopKeyRepeatThread() {
-    {
-        std::scoped_lock lock(mutex_);
-        activeKeyRepeats_.clear();
-    }
-    keyRepeatCondition_.notify_all();
-    if (keyRepeatThread_.joinable()) {
-        keyRepeatThread_.join();
-    }
-}
-
-void MapperRuntime::HandleDecodedState(JoyConSide side, const protocol::DecodedInputState& state) {
+    constexpr std::size_t kMaxStoredRawBytes = 128;
     const auto now = std::chrono::steady_clock::now();
     std::scoped_lock lock(mutex_);
     auto& slot = (side == JoyConSide::Left) ? leftSlot_ : rightSlot_;
+
+    slot.lastRawPacket = rawPacket;
+    if (slot.lastRawPacket.size() > kMaxStoredRawBytes) {
+        slot.lastRawPacket.resize(kMaxStoredRawBytes);
+    }
 
     ++slot.packetCount;
     if (slot.lastPacketTime.time_since_epoch().count() != 0) {
@@ -809,12 +624,48 @@ void MapperRuntime::UpdateMouseFromJoyCon(
     mouseStats_.minDistance = std::min(mouseStats_.minDistance, state.opticalDistance);
     mouseStats_.maxDistance = std::max(mouseStats_.maxDistance, state.opticalDistance);
 
-    if (!settings.enabled || !IsOpticalMouseActive(settings, state.opticalDistance)) {
+    if (!settings.enabled) {
         ++mouseStats_.gatedPackets;
         accumulator.hasOpticalSample = false;
         accumulator.pendingX = 0.0;
         accumulator.pendingY = 0.0;
+        accumulator.pendingScroll = 0.0;
+        accumulator.lastOpticalScrollMode = false;
         return;
+    }
+
+    const bool flatPose = IsOpticalFlatMousePose(slot.side, state.motion, settings.accelFlatMinAbs);
+    if (settings.opticalTiltBlock && !flatPose) {
+        ++mouseStats_.gatedPackets;
+        accumulator.hasOpticalSample = false;
+        accumulator.pendingX = 0.0;
+        accumulator.pendingY = 0.0;
+        accumulator.pendingScroll = 0.0;
+        accumulator.lastOpticalScrollMode = false;
+        return;
+    }
+
+    const bool scrollMode =
+        settings.opticalTiltScroll
+        && !flatPose;
+    const bool nearSurface = IsOpticalMouseActive(settings, state.opticalDistance);
+    /// Mouse mode needs low distance; tilt-scroll works in air (distance often ~3000).
+    if (!scrollMode && !nearSurface) {
+        ++mouseStats_.gatedPackets;
+        accumulator.hasOpticalSample = false;
+        accumulator.pendingX = 0.0;
+        accumulator.pendingY = 0.0;
+        accumulator.pendingScroll = 0.0;
+        accumulator.lastOpticalScrollMode = false;
+        return;
+    }
+
+    if (scrollMode != accumulator.lastOpticalScrollMode) {
+        accumulator.hasOpticalSample = false;
+        accumulator.pendingX = 0.0;
+        accumulator.pendingY = 0.0;
+        accumulator.pendingScroll = 0.0;
+        accumulator.lastOpticalScrollMode = scrollMode;
     }
 
     const int16_t rawX = state.opticalMouse.x;
@@ -837,6 +688,24 @@ void MapperRuntime::UpdateMouseFromJoyCon(
     }
 
     ++mouseStats_.movedPackets;
+
+    if (scrollMode) {
+        /// Lower than mouse-thread quantization so small dy still produces wheel ticks.
+        constexpr double kWheelNotchUnits = 24.0;
+        accumulator.pendingScroll += static_cast<double>(dy) * settings.tiltScrollSensitivity;
+        while (accumulator.pendingScroll >= kWheelNotchUnits) {
+            outputSink_->MouseWheel(WHEEL_DELTA);
+            accumulator.pendingScroll -= kWheelNotchUnits;
+            ++mouseStats_.injectedMoves;
+        }
+        while (accumulator.pendingScroll <= -kWheelNotchUnits) {
+            outputSink_->MouseWheel(-static_cast<int32_t>(WHEEL_DELTA));
+            accumulator.pendingScroll += kWheelNotchUnits;
+            ++mouseStats_.injectedMoves;
+        }
+        return;
+    }
+
     const double speed = std::hypot(static_cast<double>(dx), static_cast<double>(dy));
     const double gain = ComputeAccelerationGain(settings, speed);
     accumulator.pendingX += dx * gain;
@@ -925,16 +794,17 @@ void MapperRuntime::ReleaseMappedInputs(ControllerSlot& slot) {
         }
 
         const std::string action = ActionForInputId(config_, slot.side, inputId);
+        const std::string sinkId = MakeSinkInputId(slot.side, inputId);
         if (action != "none") {
-            InjectMappedAction(action, false);
+            InjectMappedAction(sinkId, action, false);
+        } else {
+            outputSink_->CancelKeyboardRepeat(sinkId);
         }
-        activeKeyRepeats_.erase(inputId);
         pressed = false;
     }
     slot.lockedFourWayDirection = -1;
     slot.activeEightWaySector = -1;
     slot.diagonalModeActive = false;
-    keyRepeatCondition_.notify_all();
 }
 
 void MapperRuntime::UpdateMappedInputState(
@@ -949,32 +819,50 @@ void MapperRuntime::UpdateMappedInputState(
     }
 
     slot.previousInputs[inputId] = pressed;
+    const std::string sinkId = MakeSinkInputId(slot.side, inputId);
     if (action == "none") {
-        activeKeyRepeats_.erase(inputId);
-        keyRepeatCondition_.notify_all();
+        outputSink_->CancelKeyboardRepeat(sinkId);
         return;
     }
 
-    InjectMappedAction(action, pressed);
-    const uint16_t virtualKey = ResolveKeyboardVirtualKey(action);
-    if (pressed && virtualKey != 0 && ShouldAutoRepeatVirtualKey(virtualKey)) {
-        KeyRepeatState state;
-        state.virtualKey = virtualKey;
-        state.nextRepeatTime = std::chrono::steady_clock::now() + keyRepeatSettings_.initialDelay;
-        activeKeyRepeats_[inputId] = state;
-        keyRepeatCondition_.notify_all();
-    } else {
-        activeKeyRepeats_.erase(inputId);
-        keyRepeatCondition_.notify_all();
-    }
+    InjectMappedAction(sinkId, action, pressed);
 }
 
 uint32_t MapperRuntime::ExtractButtonBits(JoyConSide side, const protocol::DecodedInputState& state) {
     return (side == JoyConSide::Left) ? state.leftButtons : state.rightButtons;
 }
 
-bool MapperRuntime::IsOpticalMouseActive(const MouseSettings& settings, uint8_t opticalDistance) {
-    return opticalDistance != 0x0C && opticalDistance <= settings.distanceThreshold;
+bool MapperRuntime::IsOpticalMouseActive(const MouseSettings& settings, uint16_t opticalDistance) {
+    if (opticalDistance == 0xFFFFu) {
+        return false;
+    }
+    return opticalDistance <= settings.distanceThreshold;
+}
+
+bool MapperRuntime::IsOpticalFlatMousePose(JoyConSide side, const joycon::ImuSample& imu, int accelFlatMinAbs) {
+    const int ax = imu.accelX;
+    const int ay = imu.accelY;
+    const int az = imu.accelZ;
+    const int axa = std::abs(ax);
+    const int aya = std::abs(ay);
+    const int aza = std::abs(az);
+    /// Optical sensor down on desk: gravity lies mainly on X; left = negative X, right = positive X, strictly > |Y| and |Z|.
+    if (side == JoyConSide::Left) {
+        if (ax >= 0) {
+            return false;
+        }
+        if (axa < accelFlatMinAbs) {
+            return false;
+        }
+        return axa > aya && axa > aza;
+    }
+    if (ax <= 0) {
+        return false;
+    }
+    if (axa < accelFlatMinAbs) {
+        return false;
+    }
+    return axa > aya && axa > aza;
 }
 
 int16_t MapperRuntime::WrapOpticalDelta(int16_t current, int16_t previous) {
@@ -993,35 +881,39 @@ double MapperRuntime::ComputeAccelerationGain(const MouseSettings& settings, dou
     return std::min(accelerated, settings.maxGain);
 }
 
-void MapperRuntime::InjectMappedAction(const std::string& action, bool pressed) {
+void MapperRuntime::InjectMappedAction(const std::string& logicalInputId, const std::string& action, bool pressed) {
     if (action == "mouse_left") {
-        SendMouseButton(MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, pressed);
+        outputSink_->EmitMouseButton(OutputMouseButton::Left, pressed);
         return;
     }
     if (action == "mouse_right") {
-        SendMouseButton(MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, pressed);
+        outputSink_->EmitMouseButton(OutputMouseButton::Right, pressed);
         return;
     }
     if (action == "mouse_middle") {
-        SendMouseButton(MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, pressed);
+        outputSink_->EmitMouseButton(OutputMouseButton::Middle, pressed);
         return;
     }
     if (action == "mouse_wheel_up") {
         if (pressed) {
-            SendMouseWheel(WHEEL_DELTA);
+            outputSink_->MouseWheel(WHEEL_DELTA);
         }
         return;
     }
     if (action == "mouse_wheel_down") {
         if (pressed) {
-            SendMouseWheel(-static_cast<int32_t>(WHEEL_DELTA));
+            outputSink_->MouseWheel(-static_cast<int32_t>(WHEEL_DELTA));
         }
         return;
     }
 
     const uint16_t virtualKey = ResolveKeyboardVirtualKey(action);
     if (virtualKey != 0) {
-        SendKeyboardKey(static_cast<WORD>(virtualKey), pressed);
+        outputSink_->KeyboardEdge(
+            logicalInputId,
+            virtualKey,
+            pressed,
+            pressed && ShouldAutoRepeatVirtualKey(virtualKey));
     }
 }
 
@@ -1034,24 +926,6 @@ uint16_t MapperRuntime::ResolveKeyboardVirtualKey(const std::string& action) {
 
 bool MapperRuntime::ShouldAutoRepeatVirtualKey(uint16_t virtualKey) {
     return virtualKey != VK_SHIFT && virtualKey != VK_CONTROL && virtualKey != VK_MENU;
-}
-
-MapperRuntime::KeyRepeatSettings MapperRuntime::QueryKeyRepeatSettings() {
-    KeyRepeatSettings settings;
-
-    int delay = 1;
-    if (SystemParametersInfoA(SPI_GETKEYBOARDDELAY, 0, &delay, 0)) {
-        settings.initialDelay = std::chrono::milliseconds(250 * (1 + std::clamp(delay, 0, 3)));
-    }
-
-    int speed = 31;
-    if (SystemParametersInfoA(SPI_GETKEYBOARDSPEED, 0, &speed, 0)) {
-        const double charsPerSecond = 2.5 + (std::clamp(speed, 0, 31) / 31.0) * 27.5;
-        settings.repeatInterval = std::chrono::milliseconds(
-            std::max(16, static_cast<int>(std::lround(1000.0 / charsPerSecond))));
-    }
-
-    return settings;
 }
 
 ControllerStateSnapshot MapperRuntime::SnapshotFromSlot(const ControllerSlot& slot) {
@@ -1069,6 +943,7 @@ ControllerStateSnapshot MapperRuntime::SnapshotFromSlot(const ControllerSlot& sl
         : 0.0;
     snapshot.buttonBits = slot.latestButtonBits;
     snapshot.decoded = slot.latestState;
+    snapshot.lastRawPacket = slot.lastRawPacket;
     return snapshot;
 }
 

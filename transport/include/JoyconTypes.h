@@ -9,8 +9,6 @@ enum class ControllerType {
     LeftJoyCon = 1,
     RightJoyCon = 2,
     DualJoyCon = 3,
-    ProController = 4,
-    NSOGameCubeController = 5
 };
 
 enum class JoyConSide {

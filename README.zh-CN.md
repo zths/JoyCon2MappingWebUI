@@ -78,6 +78,7 @@ cmake --build build --config Release
 - 启动本地 HTTP 服务
 - 默认自动打开浏览器访问 `http://127.0.0.1:17777/`
 - 在程序目录下读写配置文件 `config.json`
+- HTTP：`GET /api/config`（当前配置）、`GET /api/ui-schema`（内置默认配置与可映射动作 id 列表，供 Web UI 单一数据源）
 
 关闭控制台程序后，本地服务会停止。
 
@@ -94,7 +95,11 @@ cmake --build build --config Release
       "acceleration": 0.04,
       "exponent": 0.5,
       "maxGain": 2.5,
-      "distanceThreshold": 12
+      "distanceThreshold": 480,
+      "opticalTiltScroll": false,
+      "opticalTiltBlock": false,
+      "accelFlatMin": 2800,
+      "tiltScrollSensitivity": 0.08
     },
     "right": {
       "enabled": true,
@@ -102,7 +107,11 @@ cmake --build build --config Release
       "acceleration": 0.04,
       "exponent": 0.5,
       "maxGain": 2.5,
-      "distanceThreshold": 12
+      "distanceThreshold": 480,
+      "opticalTiltScroll": false,
+      "opticalTiltBlock": false,
+      "accelFlatMin": 2800,
+      "tiltScrollSensitivity": 0.08
     }
   },
   "sticks": {
@@ -135,7 +144,7 @@ cmake --build build --config Release
 }
 ```
 
-- `mouse.left` / `mouse.right` 分别对应左右 Joy-Con 2 的光学鼠标参数。
+- `mouse.left` / `mouse.right` 分别对应左右 Joy-Con 2 的光学鼠标参数。`distanceThreshold` 为报告 @0x16 的原始 16 位光学距离上限：读数 ≤ 该值才允许鼠标移动（贴桌约百级、悬空约三千，默认 480）。旧配置里 `0`–`12` 会在加载时映射为近似 raw 上限。可选：`opticalTiltScroll`、`opticalTiltBlock`（互斥）、`accelFlatMin`、`tiltScrollSensitivity`。
 - `sticks.left` / `sticks.right` 分别对应左右摇杆的方向映射与判定参数。
 - 可以直接在前端修改端口，保存后页面会自动跳转到新地址。
 - 如果配置文件不存在，程序会在启动 Web 服务前先写出一份默认配置。

@@ -249,6 +249,8 @@ void ControlApiServer::HandleClient(uintptr_t clientSocketValue) {
 
     if (method == "GET" && path == "/api/state") {
         response.body = RuntimeSnapshotToJson(runtime_.Snapshot()).dump();
+    } else if (method == "GET" && path == "/api/ui-schema") {
+        response.body = UiSchemaJson().dump();
     } else if (method == "GET" && path == "/api/config") {
         response.body = ConfigToJson(runtime_.CurrentConfig()).dump();
     } else if (method == "GET" && path == "/api/stats") {
