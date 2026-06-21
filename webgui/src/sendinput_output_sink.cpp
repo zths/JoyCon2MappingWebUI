@@ -113,7 +113,7 @@ SendInputOutputSink::~SendInputOutputSink() {
     {
         std::scoped_lock lock(repeatMutex_);
         repeatRunning_.store(false);
-        activeRepeats_.clear();
+        repeatId_.clear();
     }
     repeatCondition_.notify_all();
     if (repeatThread_.joinable()) {
@@ -149,7 +149,11 @@ void SendInputOutputSink::KeyboardEdge(std::string_view logicalInputId, uint16_t
     std::unique_lock lock(repeatMutex_);
 
     if (!pressed) {
-        activeRepeats_.erase(id);
+        // Releasing the active repeater stops repeating; previously-held keys do
+        // NOT resume (matches Windows typematic behavior).
+        if (repeatId_ == id) {
+            repeatId_.clear();
+        }
         repeatCondition_.notify_all();
         lock.unlock();
         if (virtualKey != 0) {
@@ -165,60 +169,53 @@ void SendInputOutputSink::KeyboardEdge(std::string_view logicalInputId, uint16_t
     SendKeyboardKey(static_cast<WORD>(virtualKey), true);
 
     if (repeatEligible) {
-        RepeatEntry state;
-        state.virtualKey = virtualKey;
-        state.nextRepeatTime = std::chrono::steady_clock::now() + repeatSettings_.initialDelay;
-        activeRepeats_[std::move(id)] = state;
-    } else {
-        activeRepeats_.erase(id);
+        // This key becomes the sole repeater, superseding any earlier held key.
+        repeatId_ = std::move(id);
+        repeat_.virtualKey = virtualKey;
+        repeat_.nextRepeatTime = std::chrono::steady_clock::now() + repeatSettings_.initialDelay;
+        repeatCondition_.notify_all();
     }
-    repeatCondition_.notify_all();
+    // Non-repeating keys (e.g. modifiers) are pressed without disturbing the
+    // current repeater.
 }
 
 void SendInputOutputSink::CancelKeyboardRepeat(std::string_view logicalInputId) {
     std::scoped_lock lock(repeatMutex_);
-    activeRepeats_.erase(std::string(logicalInputId));
+    if (repeatId_ == logicalInputId) {
+        repeatId_.clear();
+    }
     repeatCondition_.notify_all();
 }
 
 void SendInputOutputSink::RepeatThreadMain() {
     std::unique_lock lock(repeatMutex_);
     while (true) {
-        if (!repeatRunning_.load() && activeRepeats_.empty()) {
+        if (!repeatRunning_.load() && repeatId_.empty()) {
             break;
         }
 
-        if (activeRepeats_.empty()) {
+        if (repeatId_.empty()) {
             repeatCondition_.wait(lock, [this]() {
-                return !repeatRunning_.load() || !activeRepeats_.empty();
+                return !repeatRunning_.load() || !repeatId_.empty();
             });
             continue;
         }
 
-        auto nextIt = std::min_element(
-            activeRepeats_.begin(),
-            activeRepeats_.end(),
-            [](const auto& lhs, const auto& rhs) {
-                return lhs.second.nextRepeatTime < rhs.second.nextRepeatTime;
-            });
-        const auto wakeTime = nextIt->second.nextRepeatTime;
-        if (repeatCondition_.wait_until(lock, wakeTime, [this, wakeTime]() {
-                return !repeatRunning_.load() || activeRepeats_.empty() ||
-                    std::any_of(activeRepeats_.begin(), activeRepeats_.end(), [wakeTime](const auto& entry) {
-                        return entry.second.nextRepeatTime < wakeTime;
-                    });
+        // Wake at the next repeat time, or earlier if the repeater changed/stopped.
+        const std::string repeaterAtWait = repeatId_;
+        const auto wakeTime = repeat_.nextRepeatTime;
+        if (repeatCondition_.wait_until(lock, wakeTime, [this, &repeaterAtWait, wakeTime]() {
+                return !repeatRunning_.load() || repeatId_.empty() ||
+                    repeatId_ != repeaterAtWait || repeat_.nextRepeatTime != wakeTime;
             })) {
             continue;
         }
 
-        const auto now = std::chrono::steady_clock::now();
-        for (auto& [inputId, state] : activeRepeats_) {
-            (void)inputId;
-            if (state.nextRepeatTime <= now) {
-                SendKeyboardKey(static_cast<WORD>(state.virtualKey), true);
-                state.nextRepeatTime = now + repeatSettings_.repeatInterval;
-            }
+        if (repeatId_.empty()) {
+            continue;
         }
+        SendKeyboardKey(static_cast<WORD>(repeat_.virtualKey), true);
+        repeat_.nextRepeatTime = std::chrono::steady_clock::now() + repeatSettings_.repeatInterval;
     }
 }
 

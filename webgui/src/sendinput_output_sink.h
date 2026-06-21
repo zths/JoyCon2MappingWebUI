@@ -45,7 +45,10 @@ private:
     KeyRepeatSettings repeatSettings_;
     std::mutex repeatMutex_;
     std::condition_variable repeatCondition_;
-    std::map<std::string, RepeatEntry> activeRepeats_;
+    // Only the most-recently pressed repeat-eligible key auto-repeats (typematic),
+    // matching real keyboards. Empty id means nothing is repeating.
+    std::string repeatId_;
+    RepeatEntry repeat_;
     std::atomic<bool> repeatRunning_{ false };
     std::thread repeatThread_;
 };
