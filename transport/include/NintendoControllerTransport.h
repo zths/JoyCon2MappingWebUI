@@ -57,6 +57,11 @@ struct PairingResult {
     bool challengeVerified = false;     ///< AES128-ECB(LTK, challenge) matched the controller response
 };
 
+/// Map a Switch 2 controller USB/BLE Product ID to a controller type. Available
+/// during BLE discovery via the advertised product id; no connection needed.
+/// 0x2066/0x2070 = Joy-Con 2 (R), 0x2067/0x2071 = Joy-Con 2 (L).
+ControllerType ControllerTypeFromProductId(uint16_t productId);
+
 /// Read the local (host) Bluetooth adapter address. Returns std::nullopt when
 /// no default adapter is available. Stateless: the caller is responsible for any
 /// comparison/persistence (e.g. detecting that a stored pairing became invalid).
@@ -107,6 +112,10 @@ private:
         const ConnectionOptions& options,
         ControllerType expectedAdvertisedType,
         const std::function<bool(const ControllerInfo&)>& matcher);
+    friend ControllerConnection ConnectByAddress(
+        uint64_t controllerAddress,
+        ControllerType expectedType,
+        const ConnectionOptions& options);
 };
 
 ControllerConnection ConnectToFirstController(
@@ -116,6 +125,16 @@ ControllerConnection ConnectToFirstController(
 ControllerConnection ConnectJoyCon(
     JoyConSide side,
     std::wstring_view prompt,
+    const ConnectionOptions& options = {});
+
+/// Connect directly to a known controller Bluetooth address (no scanning) and
+/// build a ready-to-use connection. `expectedType` (from the advertised Product
+/// ID) sets the controller type; Unknown falls back to the device name. Throws
+/// std::runtime_error on failure. Used by ControllerManager for targeted
+/// (re)connection.
+ControllerConnection ConnectByAddress(
+    uint64_t controllerAddress,
+    ControllerType expectedType,
     const ConnectionOptions& options = {});
 
 } // namespace joycon::transport

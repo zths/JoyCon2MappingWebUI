@@ -7,6 +7,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -130,6 +131,12 @@ struct RuntimeSnapshot {
     /// Live local Bluetooth adapter address (0 if unavailable); compare to a
     /// paired device's hostAddress to know whether a pairing is still valid.
     uint64_t hostBluetoothAddress = 0;
+    /// Transient notice for the UI. `noticeId` increments on each new notice;
+    /// the frontend shows a toast when it changes. `noticeCode` is a localizable
+    /// key (e.g. "duplicateSameSide"); `noticeSide` is the relevant side.
+    uint64_t noticeId = 0;
+    std::string noticeCode;
+    JoyConSide noticeSide = JoyConSide::Left;
 };
 
 class MapperRuntime {
@@ -144,15 +151,24 @@ public:
     void ApplyConfig(const AppConfig& config);
     AppConfig CurrentConfig() const;
 
-    bool ConnectSide(JoyConSide side, std::string& errorMessage, std::chrono::seconds scanTimeout = std::chrono::seconds(30));
+    /// Start/stop accepting newly-discovered controllers (side-agnostic "connect").
+    /// Whichever Joy-Con advertises is routed to its side via the Product ID.
+    /// When `pairOnConnect` is true, a controller that connects while it is not
+    /// already validly paired to this PC is automatically OOB-paired.
+    void SetAccepting(bool accepting, bool pairOnConnect = false);
     void DisconnectSide(JoyConSide side);
 
+    /// Invoked (off the dispatch thread's caller) whenever the runtime mutates
+    /// persisted config on its own (e.g. an auto-pair). Lets the host save it.
+    void SetConfigPersistCallback(std::function<void(const AppConfig&)> callback);
+
     /// OOB-pair the (already connected) controller on `side` to this PC, so it
-    /// can reconnect on a button press. Updates the in-memory pairing config on
-    /// success; callers persist via ConfigStore. Requires the side to be Connected.
+    /// can reconnect on a button press. Blocks until the pairing task completes.
+    /// Updates the in-memory pairing config on success; callers persist via ConfigStore.
     bool PairSide(JoyConSide side, std::string& errorMessage);
 
-    /// Enable/disable background auto-connect & reconnect of paired controllers.
+    /// Enable/disable auto-reconnect of paired controllers (drives known-device
+    /// targets on the controller manager).
     void SetAutoConnect(bool enabled);
 
     RuntimeSnapshot Snapshot() const;
@@ -185,7 +201,6 @@ private:
         JoyConSide side = JoyConSide::Left;
         ConnectionStatus status = ConnectionStatus::Disconnected;
         std::string error;
-        std::unique_ptr<transport::ControllerConnection> connection;
         std::wstring deviceName;
         protocol::DecodedInputState latestState{};
         uint32_t latestButtonBits = 0;
@@ -203,11 +218,9 @@ private:
 
     void StartMouseOutputThread();
     void StopMouseOutputThread();
-    void StartAutoConnectThread();
-    void StopAutoConnectThread();
-    void AutoConnectLoop();
+    void OnControllerEvent(const transport::ControllerEvent& event);
+    void SyncKnownDevicesToManager();
     void HandleDecodedState(JoyConSide side, const protocol::DecodedInputState& state, const std::vector<uint8_t>& rawPacket);
-    void HandleConnectionStatusEvent(JoyConSide side, transport::ControllerConnectionStatus status);
     void UpdateMouseFromJoyCon(ControllerSlot& slot, const std::chrono::steady_clock::time_point& callbackTime);
     void UpdateMappedButtons(ControllerSlot& slot);
     void UpdateMappedStick(ControllerSlot& slot);
@@ -234,8 +247,30 @@ private:
     std::thread mouseOutputThread_;
     bool running_ = false;
 
-    std::thread autoConnectThread_;
-    std::atomic<bool> autoConnectRunning_{ false };
+    // Synchronous wait bridge for the async pairing task.
+    std::mutex pairMutex_;
+    std::condition_variable pairCondition_;
+    struct PairWait {
+        bool pending = false;
+        bool done = false;
+        bool success = false;
+        std::string error;
+    };
+    PairWait leftPairWait_;
+    PairWait rightPairWait_;
+
+    // Transient UI notice (guarded by mutex_).
+    uint64_t noticeId_ = 0;
+    std::string noticeCode_;
+    JoyConSide noticeSide_ = JoyConSide::Left;
+
+    // Auto-pair-on-connect mode + persistence hook.
+    bool pairOnConnect_ = false;
+    std::function<void(const AppConfig&)> persistCallback_;
+
+    // Declared last so it is destroyed first: its dtor stops the dispatch thread
+    // (which calls OnControllerEvent) before the slots/mutex above are gone.
+    transport::ControllerManager manager_;
 };
 
 } // namespace joycon::webgui

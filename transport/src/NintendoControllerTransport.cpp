@@ -125,22 +125,6 @@ uint16_t ReadAdvertisedProductId(const std::vector<uint8_t>& data) {
     return static_cast<uint16_t>(data[5]) | (static_cast<uint16_t>(data[6]) << 8);
 }
 
-/// Map a Switch 2 controller Product ID to a controller type. Authoritative and
-/// available during BLE discovery (no connection needed). See
-/// switch2_controller_research/{descriptors.md,safe_mode.md}.
-ControllerType ControllerTypeFromProductId(uint16_t productId) {
-    switch (productId) {
-    case 0x2066: // JoyCon 2 (R)
-    case 0x2070: // JoyCon 2 (R), safe mode
-        return ControllerType::RightJoyCon;
-    case 0x2067: // JoyCon 2 (L)
-    case 0x2071: // JoyCon 2 (L), safe mode
-        return ControllerType::LeftJoyCon;
-    default:
-        return ControllerType::Unknown; // Pro (0x2069), GameCube (0x2073), etc.
-    }
-}
-
 /// Fallback side detection from the device name when the advertised Product ID
 /// is unavailable. Joy-Con 2 names look like "Joy-Con 2 (L)" / "Joy-Con 2 (R)".
 ControllerType GuessControllerType(const std::wstring& name) {
@@ -208,6 +192,19 @@ void SendGenericCommand(
 }
 
 } // namespace
+
+ControllerType ControllerTypeFromProductId(uint16_t productId) {
+    switch (productId) {
+    case 0x2066: // JoyCon 2 (R)
+    case 0x2070: // JoyCon 2 (R), safe mode
+        return ControllerType::RightJoyCon;
+    case 0x2067: // JoyCon 2 (L)
+    case 0x2071: // JoyCon 2 (L), safe mode
+        return ControllerType::LeftJoyCon;
+    default:
+        return ControllerType::Unknown; // Pro (0x2069), GameCube (0x2073), etc.
+    }
+}
 
 struct ControllerConnection::State {
     BluetoothLEDevice device{ nullptr };
@@ -591,96 +588,14 @@ void ControllerConnection::SetConnectionStatusCallback(const ConnectionStatusCal
     state_->connectionStatusCallback = callback;
 }
 
-ControllerConnection ConnectMatchingControllerImpl(
-    std::wstring_view prompt,
-    const ConnectionOptions& options,
-    ControllerType expectedAdvertisedType,
-    const std::function<bool(const ControllerInfo&)>& matcher) {
+ControllerConnection ConnectByAddress(
+    uint64_t controllerAddress,
+    ControllerType expectedType,
+    const ConnectionOptions& options) {
 
-    std::wcout << prompt << L"\n";
-
-    const auto deadline = std::chrono::steady_clock::now() + options.timeout;
-
-    while (true) {
-        auto now = std::chrono::steady_clock::now();
-        if (now >= deadline) {
-            throw std::runtime_error("Timed out waiting for a matching Nintendo controller.");
-        }
-
-        ConnectionOptions attemptOptions = options;
-        attemptOptions.timeout = std::chrono::duration_cast<std::chrono::seconds>(deadline - now);
-        if (attemptOptions.timeout <= std::chrono::seconds::zero()) {
-            attemptOptions.timeout = std::chrono::seconds(1);
-        }
-
-    BluetoothLEDevice device{ nullptr };
-    bool connected = false;
-    ControllerType acceptedAdvertisedType = ControllerType::Unknown;
-
-    BluetoothLEAdvertisementWatcher watcher;
-    std::mutex mutex;
-    std::condition_variable cv;
-
-    watcher.Received([&](auto const&, auto const& args) {
-        std::unique_lock lock(mutex);
-        if (connected) {
-            return;
-        }
-
-        const auto manufacturerData = args.Advertisement().ManufacturerData();
-        for (uint32_t i = 0; i < manufacturerData.Size(); ++i) {
-            const auto section = manufacturerData.GetAt(i);
-            if (section.CompanyId() != kNintendoManufacturerId) {
-                continue;
-            }
-
-            auto reader = DataReader::FromBuffer(section.Data());
-            std::vector<uint8_t> data(reader.UnconsumedBufferLength());
-            reader.ReadBytes(data);
-
-            if (data.size() < kNintendoManufacturerPrefix.size()) {
-                continue;
-            }
-
-            if (!std::equal(
-                    kNintendoManufacturerPrefix.begin(),
-                    kNintendoManufacturerPrefix.end(),
-                    data.begin())) {
-                continue;
-            }
-
-            // Decide left/right from the advertised Product ID before connecting,
-            // so we never grab the wrong side. If the side is requested but the
-            // advert resolves to a known different side, keep scanning.
-            const ControllerType advertisedType = ControllerTypeFromProductId(ReadAdvertisedProductId(data));
-            if (expectedAdvertisedType != ControllerType::Unknown
-                && advertisedType != ControllerType::Unknown
-                && advertisedType != expectedAdvertisedType) {
-                continue;
-            }
-
-            device = BluetoothLEDevice::FromBluetoothAddressAsync(args.BluetoothAddress()).get();
-            if (!device) {
-                return;
-            }
-
-            acceptedAdvertisedType = advertisedType;
-            connected = true;
-            watcher.Stop();
-            cv.notify_one();
-            return;
-        }
-    });
-
-    watcher.ScanningMode(BluetoothLEScanningMode::Active);
-    watcher.Start();
-
-    {
-        std::unique_lock lock(mutex);
-        if (!cv.wait_for(lock, attemptOptions.timeout, [&]() { return connected; })) {
-            watcher.Stop();
-            throw std::runtime_error("Timed out waiting for a Nintendo controller.");
-        }
+    auto device = BluetoothLEDevice::FromBluetoothAddressAsync(controllerAddress).get();
+    if (!device) {
+        throw std::runtime_error("Failed to open Bluetooth LE device.");
     }
 
     auto servicesResult = GetGattServicesWithRetry(device);
@@ -693,8 +608,8 @@ ControllerConnection ConnectMatchingControllerImpl(
     state->info.name = device.Name().c_str();
     state->info.bluetoothAddress = device.BluetoothAddress();
     // Prefer the authoritative advertised Product ID; fall back to the name.
-    state->info.type = (acceptedAdvertisedType != ControllerType::Unknown)
-        ? acceptedAdvertisedType
+    state->info.type = (expectedType != ControllerType::Unknown)
+        ? expectedType
         : GuessControllerType(state->info.name);
 
     const auto services = servicesResult.Services();
@@ -748,7 +663,7 @@ ControllerConnection ConnectMatchingControllerImpl(
         });
     state->hasConnectionStatusChangedToken = true;
 
-    if (attemptOptions.requestLowLatency) {
+    if (options.requestLowLatency) {
         try {
             auto params = BluetoothLEPreferredConnectionParameters::ThroughputOptimized();
             state->device.RequestPreferredConnectionParameters(params);
@@ -757,8 +672,100 @@ ControllerConnection ConnectMatchingControllerImpl(
         }
     }
 
-        if (matcher(state->info)) {
-            return ControllerConnection(state);
+    return ControllerConnection(state);
+}
+
+ControllerConnection ConnectMatchingControllerImpl(
+    std::wstring_view prompt,
+    const ConnectionOptions& options,
+    ControllerType expectedAdvertisedType,
+    const std::function<bool(const ControllerInfo&)>& matcher) {
+
+    std::wcout << prompt << L"\n";
+
+    const auto deadline = std::chrono::steady_clock::now() + options.timeout;
+
+    while (true) {
+        auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) {
+            throw std::runtime_error("Timed out waiting for a matching Nintendo controller.");
+        }
+
+        ConnectionOptions attemptOptions = options;
+        attemptOptions.timeout = std::chrono::duration_cast<std::chrono::seconds>(deadline - now);
+        if (attemptOptions.timeout <= std::chrono::seconds::zero()) {
+            attemptOptions.timeout = std::chrono::seconds(1);
+        }
+
+    uint64_t foundAddress = 0;
+    bool connected = false;
+    ControllerType acceptedAdvertisedType = ControllerType::Unknown;
+
+    BluetoothLEAdvertisementWatcher watcher;
+    std::mutex mutex;
+    std::condition_variable cv;
+
+    watcher.Received([&](auto const&, auto const& args) {
+        std::unique_lock lock(mutex);
+        if (connected) {
+            return;
+        }
+
+        const auto manufacturerData = args.Advertisement().ManufacturerData();
+        for (uint32_t i = 0; i < manufacturerData.Size(); ++i) {
+            const auto section = manufacturerData.GetAt(i);
+            if (section.CompanyId() != kNintendoManufacturerId) {
+                continue;
+            }
+
+            auto reader = DataReader::FromBuffer(section.Data());
+            std::vector<uint8_t> data(reader.UnconsumedBufferLength());
+            reader.ReadBytes(data);
+
+            if (data.size() < kNintendoManufacturerPrefix.size()) {
+                continue;
+            }
+
+            if (!std::equal(
+                    kNintendoManufacturerPrefix.begin(),
+                    kNintendoManufacturerPrefix.end(),
+                    data.begin())) {
+                continue;
+            }
+
+            // Decide left/right from the advertised Product ID before connecting,
+            // so we never grab the wrong side. If the side is requested but the
+            // advert resolves to a known different side, keep scanning.
+            const ControllerType advertisedType = ControllerTypeFromProductId(ReadAdvertisedProductId(data));
+            if (expectedAdvertisedType != ControllerType::Unknown
+                && advertisedType != ControllerType::Unknown
+                && advertisedType != expectedAdvertisedType) {
+                continue;
+            }
+
+            foundAddress = args.BluetoothAddress();
+            acceptedAdvertisedType = advertisedType;
+            connected = true;
+            watcher.Stop();
+            cv.notify_one();
+            return;
+        }
+    });
+
+    watcher.ScanningMode(BluetoothLEScanningMode::Active);
+    watcher.Start();
+
+    {
+        std::unique_lock lock(mutex);
+        if (!cv.wait_for(lock, attemptOptions.timeout, [&]() { return connected; })) {
+            watcher.Stop();
+            throw std::runtime_error("Timed out waiting for a Nintendo controller.");
+        }
+    }
+
+        auto connection = ConnectByAddress(foundAddress, acceptedAdvertisedType, attemptOptions);
+        if (matcher(connection.Info())) {
+            return connection;
         }
     }
 }

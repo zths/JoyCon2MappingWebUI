@@ -34,6 +34,8 @@
       },
       button: {
         connect: "连接",
+        startConnect: "开始连接",
+        startConnectPair: "开始连接并配对",
         disconnect: "断开",
         pair: "配对到此 PC"
       },
@@ -42,10 +44,12 @@
         notPaired: "未配对",
         pairedValid: "已配对到本机（按任意键即可重连）",
         pairedInvalid: "已配对，但本机蓝牙地址已变化，需重新配对",
-        hostAddress: "本机蓝牙：{mac}",
         pairing: "正在配对…（请保持手柄连接）",
         pairSuccess: "配对成功，之后按任意键即可自动连接",
         pairFailed: "配对失败：{detail}"
+      },
+      notice: {
+        duplicateSameSide: "检测到第二只{side} Joy-Con，已忽略（每侧仅支持一只）"
       },
       section: {
         interactiveMapping: "交互式映射",
@@ -280,6 +284,8 @@
       },
       button: {
         connect: "Connect",
+        startConnect: "Start Connecting",
+        startConnectPair: "Connect & Pair",
         disconnect: "Disconnect",
         pair: "Pair to this PC"
       },
@@ -288,10 +294,12 @@
         notPaired: "Not paired",
         pairedValid: "Paired to this PC (press any button to reconnect)",
         pairedInvalid: "Paired, but this PC's Bluetooth address changed — re-pair needed",
-        hostAddress: "This PC Bluetooth: {mac}",
         pairing: "Pairing… (keep the controller connected)",
         pairSuccess: "Paired. Press any button to auto-connect next time.",
         pairFailed: "Pairing failed: {detail}"
+      },
+      notice: {
+        duplicateSameSide: "A second {side} Joy-Con was detected and ignored (only one per side)"
       },
       section: {
         interactiveMapping: "Interactive Mapping",

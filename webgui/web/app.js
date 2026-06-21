@@ -12,12 +12,11 @@ const ui = {
   rightBatteryPill: document.getElementById("rightBatteryPill"),
   leftName: document.getElementById("leftName"),
   rightName: document.getElementById("rightName"),
-  pairLeftBtn: document.getElementById("pairLeftBtn"),
-  pairRightBtn: document.getElementById("pairRightBtn"),
   leftPairing: document.getElementById("leftPairing"),
   rightPairing: document.getElementById("rightPairing"),
+  connectBtn: document.getElementById("connectBtn"),
+  connectPairBtn: document.getElementById("connectPairBtn"),
   autoConnectToggle: document.getElementById("autoConnectToggle"),
-  hostAddress: document.getElementById("hostAddress"),
   leftStats: document.getElementById("leftStats"),
   rightStats: document.getElementById("rightStats"),
   mouseStats: document.getElementById("mouseStats"),
@@ -76,8 +75,8 @@ const hotspots = {
     { id: "right-stick", side: "right", type: "stick", runtimeId: "right", labelKey: "hotspots.rightStick", x: 68, y: 274, w: 82, h: 82, shape: "circle" },
     { id: "right-home", side: "right", type: "button", runtimeId: "Home", labelKey: "hotspots.rightHome", x: 50, y: 410, w: 36, h: 36, shape: "circle" },
     { id: "right-c", side: "right", type: "button", runtimeId: "C", labelKey: "hotspots.rightC", x: 54, y: 466, w: 28, h: 28, shape: "square" },
-    { id: "right-sl", side: "right", type: "button", runtimeId: "SL", labelKey: "hotspots.rightSl", x: 4, y: 90, w: 10, h: 82, shape: "pill" },
-    { id: "right-sr", side: "right", type: "button", runtimeId: "SR", labelKey: "hotspots.rightSr", x: 4, y: 380, w: 10, h: 82, shape: "pill" }
+    { id: "right-sr", side: "right", type: "button", runtimeId: "SR", labelKey: "hotspots.rightSr", x: 4, y: 90, w: 10, h: 82, shape: "pill" },
+    { id: "right-sl", side: "right", type: "button", runtimeId: "SL", labelKey: "hotspots.rightSl", x: 4, y: 380, w: 10, h: 82, shape: "pill" }
   ]
 };
 
@@ -1242,6 +1241,7 @@ function updateStateDisplay() {
   setInnerTextIfChanged(ui.rightStats, formatControllerStats(latestState.right));
   setInnerTextIfChanged(ui.mouseStats, formatMouseStats(latestState.mouseStats));
   updatePairingDisplay();
+  updateNotice();
   updatePacketLabDisplay();
 }
 
@@ -1274,27 +1274,25 @@ function updatePairingDisplay() {
   if (ui.autoConnectToggle && document.activeElement !== ui.autoConnectToggle) {
     ui.autoConnectToggle.checked = !!pairing.autoConnect;
   }
-  setInnerTextIfChanged(
-    ui.hostAddress,
-    pairing.hostAddress ? t("pairing.hostAddress", { mac: pairing.hostAddress }) : ""
-  );
 }
 
-async function pairSide(side) {
-  showToast(t("pairing.pairing"));
-  try {
-    const result = await api(`/api/pair/${side}`, { method: "POST" });
-    if (result.ok) {
-      showToast(t("pairing.pairSuccess"));
-    } else {
-      showToast(t("pairing.pairFailed", { detail: result.error || "" }));
-    }
-  } catch (error) {
-    showToast(t("pairing.pairFailed", { detail: String(error?.message || error) }));
+let lastNoticeId = 0;
+function updateNotice() {
+  const notice = latestState?.notice;
+  if (!notice || !notice.id) {
+    return;
   }
-  await refreshConfig();
-  await refreshState();
+  if (notice.id === lastNoticeId) {
+    return;
+  }
+  // Skip stale notices captured before this page loaded.
+  if (lastNoticeId !== 0 && notice.code) {
+    const sideLabel = t(`side.${notice.side}`, {}, notice.side);
+    showToast(t(`notice.${notice.code}`, { side: sideLabel }, notice.code));
+  }
+  lastNoticeId = notice.id;
 }
+
 
 function createEditorDescriptor(hotspot) {
   if (!hotspot) {
@@ -1404,15 +1402,15 @@ function bindActions() {
     openEditor("server-settings");
   });
 
-  document.getElementById("connectLeftBtn").addEventListener("click", async () => {
+  ui.connectBtn.addEventListener("click", async () => {
     showToast(t("prompt.holdSyncToConnect"));
-    await api("/api/connect/left", { method: "POST" });
+    await api("/api/connect", { method: "POST" });
     await refreshState();
   });
 
-  document.getElementById("connectRightBtn").addEventListener("click", async () => {
+  ui.connectPairBtn.addEventListener("click", async () => {
     showToast(t("prompt.holdSyncToConnect"));
-    await api("/api/connect/right", { method: "POST" });
+    await api("/api/connect/pair", { method: "POST" });
     await refreshState();
   });
 
@@ -1425,9 +1423,6 @@ function bindActions() {
     await api("/api/disconnect/right", { method: "POST" });
     await refreshState();
   });
-
-  ui.pairLeftBtn.addEventListener("click", () => pairSide("left"));
-  ui.pairRightBtn.addEventListener("click", () => pairSide("right"));
 
   ui.autoConnectToggle.addEventListener("change", async () => {
     await api("/api/autoconnect", { method: "POST", body: { enabled: ui.autoConnectToggle.checked } });

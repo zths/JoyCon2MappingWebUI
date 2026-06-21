@@ -253,14 +253,15 @@ void ControlApiServer::HandleClient(uintptr_t clientSocketValue) {
         response.body = UiSchemaJson().dump();
     } else if (method == "GET" && path == "/api/config") {
         response.body = ConfigToJson(runtime_.CurrentConfig()).dump();
-    } else if (method == "POST" && path == "/api/connect/left") {
-        std::string error;
-        const bool ok = runtime_.ConnectSide(JoyConSide::Left, error);
-        response.body = ok ? json{ { "ok", true } }.dump() : json{ { "ok", false }, { "error", error } }.dump();
-    } else if (method == "POST" && path == "/api/connect/right") {
-        std::string error;
-        const bool ok = runtime_.ConnectSide(JoyConSide::Right, error);
-        response.body = ok ? json{ { "ok", true } }.dump() : json{ { "ok", false }, { "error", error } }.dump();
+    } else if (method == "POST" && path == "/api/connect/pair") {
+        // Start accepting and auto-pair whatever connects (if not already paired).
+        runtime_.SetAccepting(true, /*pairOnConnect=*/true);
+        response.body = json{ { "ok", true } }.dump();
+    } else if (method == "POST" && (path == "/api/connect" || path == "/api/connect/left" || path == "/api/connect/right")) {
+        // Side-agnostic: start accepting; whichever Joy-Con advertises is routed
+        // to its side by Product ID and reported via the runtime's event stream.
+        runtime_.SetAccepting(true, /*pairOnConnect=*/false);
+        response.body = json{ { "ok", true } }.dump();
     } else if (method == "POST" && path == "/api/disconnect/left") {
         runtime_.DisconnectSide(JoyConSide::Left);
         response.body = json{ { "ok", true } }.dump();

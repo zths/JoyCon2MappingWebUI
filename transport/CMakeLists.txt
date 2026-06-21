@@ -11,6 +11,7 @@ endif()
 add_library(joycon_transport
   src/NintendoControllerProtocol.cpp
   src/NintendoControllerTransport.cpp
+  src/ControllerManager.cpp
 )
 
 add_library(joycon::transport ALIAS joycon_transport)

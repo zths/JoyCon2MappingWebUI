@@ -344,6 +344,11 @@ json RuntimeSnapshotToJson(const RuntimeSnapshot& snapshot) {
         { "ok", true },
         { "left", ControllerStateToJson(snapshot.left) },
         { "right", ControllerStateToJson(snapshot.right) },
+        { "notice", {
+            { "id", snapshot.noticeId },
+            { "code", snapshot.noticeCode },
+            { "side", SideToString(snapshot.noticeSide) }
+        } },
         { "pairing", {
             { "autoConnect", snapshot.config.pairing.autoConnect },
             { "hostAddress", FormatMacAddress(snapshot.hostBluetoothAddress) },

@@ -43,6 +43,12 @@ int main() {
     const std::filesystem::path configPath = executableDir / "config.json";
     joycon::webgui::ConfigStore configStore(configPath);
 
+    // Persist config when the runtime mutates it on its own (e.g. an auto-pair).
+    runtime.SetConfigPersistCallback([&configStore](const joycon::webgui::AppConfig& cfg) {
+        std::string saveError;
+        configStore.Save(cfg, saveError);
+    });
+
     auto config = runtime.CurrentConfig();
     const bool configFileExists = std::filesystem::exists(configPath);
     std::string loadError;
