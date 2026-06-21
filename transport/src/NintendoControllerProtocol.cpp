@@ -45,23 +45,20 @@ void DecodeJoyConExtendedTelemetry(
         }
     }
 
-    if (side == JoyConSide::Right) {
-        if (buffer.size() >= 0x30) {
-            const int16_t tempRaw = ToSigned16(buffer[0x2E], buffer[0x2F]);
-            state.temperatureRaw = tempRaw;
+    // Temperature: s16 LE @0x2E (Motion Data + 0x4 in input report 0x05), the
+    // documented field for all controllers per hid_reports.md. The raw value uses
+    // a DIFFERENT scale per side (Right ~25 degC at raw ~0; Left ~25 degC at raw
+    // ~1275), so each side needs its own formula. Right is validated cold/hot
+    // (fridge). Left is not yet calibrated -> expose raw only.
+    if (buffer.size() >= 0x30) {
+        const int16_t tempRaw = ToSigned16(buffer[0x2E], buffer[0x2F]);
+        state.temperatureRaw = tempRaw;
+        if (side == JoyConSide::Right) {
             const float celsius = 25.0f + static_cast<float>(tempRaw) / 127.0f;
             if (celsius >= 0.0f && celsius <= 85.0f) {
                 state.temperatureCelsius = celsius;
                 state.temperatureValid = true;
             }
-        }
-    } else {
-        if (buffer.size() >= 0x2E) {
-            const uint16_t tempRaw = ToUint16Le(buffer, 0x2C);
-            state.temperatureRaw = static_cast<int32_t>(tempRaw);
-        }
-        if (buffer.size() >= 0x30) {
-            state.temperatureSecondaryRaw = ToSigned16(buffer[0x2E], buffer[0x2F]);
         }
     }
 }

@@ -440,14 +440,9 @@ function formatControllerStats(sideState) {
       : "",
     sideState.temperatureValid
       ? `${t("stats.controller.temperature")}: ${Number(sideState.temperatureCelsius).toFixed(1)} °C (${t("stats.controller.temperatureRaw")} ${sideState.temperatureRaw})`
-      : sideState.side === "left" && sideState.temperatureRaw !== undefined && sideState.temperatureRaw !== null
-        ? `${t("stats.controller.temperature")}: raw ${sideState.temperatureRaw} (${t("stats.controller.temperatureLeftNote")})`
+      : sideState.status === "connected" && sideState.temperatureRaw !== undefined && sideState.temperatureRaw !== null
+        ? `${t("stats.controller.temperature")}: ${t("stats.controller.temperatureRaw")} ${sideState.temperatureRaw}`
         : `${t("stats.controller.temperature")}: —`,
-    sideState.side === "left" && sideState.status === "connected"
-      ? `${t("stats.controller.temperatureSecondary")}: ${Number(sideState.temperatureSecondaryRaw ?? 0)} (${t(
-          "stats.controller.temperatureSecondaryLeftNote"
-        )})`
-      : "",
     `${t("stats.controller.accelerometer")}: (${fmtImu(sideState.accelX)}, ${fmtImu(sideState.accelY)}, ${fmtImu(sideState.accelZ)})`,
     `${t("stats.controller.gyroscope")}: (${fmtImu(sideState.gyroX)}, ${fmtImu(sideState.gyroY)}, ${fmtImu(sideState.gyroZ)})`,
     `${t("stats.controller.magnetometer")}: (${fmtImu(sideState.magnetometerX)}, ${fmtImu(sideState.magnetometerY)}, ${fmtImu(sideState.magnetometerZ)})`,
