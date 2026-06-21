@@ -74,11 +74,28 @@ struct ServerSettings {
     uint16_t port = 17777;
 };
 
+/// A controller that has been OOB-paired to this host (PC). The controller
+/// stores host+LTK itself; here we only remember enough to display state and
+/// detect when the local Bluetooth adapter changed (invalidating the pairing).
+struct PairedDevice {
+    bool paired = false;
+    uint64_t controllerAddress = 0;
+    uint64_t hostAddress = 0;
+    std::string deviceName;
+};
+
+struct PairingSettings {
+    PairedDevice left;
+    PairedDevice right;
+    bool autoConnect = false;
+};
+
 struct AppConfig {
     MouseConfig mouse;
     MappingConfig mapping;
     StickSettings sticks;
     ServerSettings server;
+    PairingSettings pairing;
 };
 
 struct ControllerStateSnapshot {
@@ -110,6 +127,9 @@ struct RuntimeSnapshot {
     ControllerStateSnapshot left;
     ControllerStateSnapshot right;
     MouseStatsSnapshot mouseStats;
+    /// Live local Bluetooth adapter address (0 if unavailable); compare to a
+    /// paired device's hostAddress to know whether a pairing is still valid.
+    uint64_t hostBluetoothAddress = 0;
 };
 
 class MapperRuntime {
@@ -124,8 +144,16 @@ public:
     void ApplyConfig(const AppConfig& config);
     AppConfig CurrentConfig() const;
 
-    bool ConnectSide(JoyConSide side, std::string& errorMessage);
+    bool ConnectSide(JoyConSide side, std::string& errorMessage, std::chrono::seconds scanTimeout = std::chrono::seconds(30));
     void DisconnectSide(JoyConSide side);
+
+    /// OOB-pair the (already connected) controller on `side` to this PC, so it
+    /// can reconnect on a button press. Updates the in-memory pairing config on
+    /// success; callers persist via ConfigStore. Requires the side to be Connected.
+    bool PairSide(JoyConSide side, std::string& errorMessage);
+
+    /// Enable/disable background auto-connect & reconnect of paired controllers.
+    void SetAutoConnect(bool enabled);
 
     RuntimeSnapshot Snapshot() const;
 
@@ -175,6 +203,9 @@ private:
 
     void StartMouseOutputThread();
     void StopMouseOutputThread();
+    void StartAutoConnectThread();
+    void StopAutoConnectThread();
+    void AutoConnectLoop();
     void HandleDecodedState(JoyConSide side, const protocol::DecodedInputState& state, const std::vector<uint8_t>& rawPacket);
     void HandleConnectionStatusEvent(JoyConSide side, transport::ControllerConnectionStatus status);
     void UpdateMouseFromJoyCon(ControllerSlot& slot, const std::chrono::steady_clock::time_point& callbackTime);
@@ -202,6 +233,9 @@ private:
     std::condition_variable mouseCondition_;
     std::thread mouseOutputThread_;
     bool running_ = false;
+
+    std::thread autoConnectThread_;
+    std::atomic<bool> autoConnectRunning_{ false };
 };
 
 } // namespace joycon::webgui

@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cmath>
 #include <utility>
-#include <vector>
 
 namespace joycon::webgui {
 namespace {
@@ -213,20 +212,13 @@ void SendInputOutputSink::RepeatThreadMain() {
         }
 
         const auto now = std::chrono::steady_clock::now();
-        std::vector<uint16_t> repeatKeys;
         for (auto& [inputId, state] : activeRepeats_) {
             (void)inputId;
             if (state.nextRepeatTime <= now) {
-                repeatKeys.push_back(state.virtualKey);
+                SendKeyboardKey(static_cast<WORD>(state.virtualKey), true);
                 state.nextRepeatTime = now + repeatSettings_.repeatInterval;
             }
         }
-
-        lock.unlock();
-        for (const uint16_t virtualKey : repeatKeys) {
-            SendKeyboardKey(static_cast<WORD>(virtualKey), true);
-        }
-        lock.lock();
     }
 }
 

@@ -12,6 +12,12 @@ const ui = {
   rightBatteryPill: document.getElementById("rightBatteryPill"),
   leftName: document.getElementById("leftName"),
   rightName: document.getElementById("rightName"),
+  pairLeftBtn: document.getElementById("pairLeftBtn"),
+  pairRightBtn: document.getElementById("pairRightBtn"),
+  leftPairing: document.getElementById("leftPairing"),
+  rightPairing: document.getElementById("rightPairing"),
+  autoConnectToggle: document.getElementById("autoConnectToggle"),
+  hostAddress: document.getElementById("hostAddress"),
   leftStats: document.getElementById("leftStats"),
   rightStats: document.getElementById("rightStats"),
   mouseStats: document.getElementById("mouseStats"),
@@ -1235,7 +1241,59 @@ function updateStateDisplay() {
   setInnerTextIfChanged(ui.leftStats, formatControllerStats(latestState.left));
   setInnerTextIfChanged(ui.rightStats, formatControllerStats(latestState.right));
   setInnerTextIfChanged(ui.mouseStats, formatMouseStats(latestState.mouseStats));
+  updatePairingDisplay();
   updatePacketLabDisplay();
+}
+
+function formatPairingStatus(sidePairing) {
+  if (!sidePairing || !sidePairing.paired) {
+    return t("pairing.notPaired");
+  }
+  return sidePairing.valid ? t("pairing.pairedValid") : t("pairing.pairedInvalid");
+}
+
+function applyPairingStatusClass(element, sidePairing) {
+  if (!element) {
+    return;
+  }
+  const invalid = !!(sidePairing && sidePairing.paired && !sidePairing.valid);
+  element.classList.toggle("pairing-invalid", invalid);
+}
+
+function updatePairingDisplay() {
+  const pairing = latestState?.pairing;
+  if (!pairing) {
+    return;
+  }
+  setInnerTextIfChanged(ui.leftPairing, formatPairingStatus(pairing.left));
+  setInnerTextIfChanged(ui.rightPairing, formatPairingStatus(pairing.right));
+  applyPairingStatusClass(ui.leftPairing, pairing.left);
+  applyPairingStatusClass(ui.rightPairing, pairing.right);
+
+  // Don't fight the user mid-toggle.
+  if (ui.autoConnectToggle && document.activeElement !== ui.autoConnectToggle) {
+    ui.autoConnectToggle.checked = !!pairing.autoConnect;
+  }
+  setInnerTextIfChanged(
+    ui.hostAddress,
+    pairing.hostAddress ? t("pairing.hostAddress", { mac: pairing.hostAddress }) : ""
+  );
+}
+
+async function pairSide(side) {
+  showToast(t("pairing.pairing"));
+  try {
+    const result = await api(`/api/pair/${side}`, { method: "POST" });
+    if (result.ok) {
+      showToast(t("pairing.pairSuccess"));
+    } else {
+      showToast(t("pairing.pairFailed", { detail: result.error || "" }));
+    }
+  } catch (error) {
+    showToast(t("pairing.pairFailed", { detail: String(error?.message || error) }));
+  }
+  await refreshConfig();
+  await refreshState();
 }
 
 function createEditorDescriptor(hotspot) {
@@ -1365,6 +1423,15 @@ function bindActions() {
 
   document.getElementById("disconnectRightBtn").addEventListener("click", async () => {
     await api("/api/disconnect/right", { method: "POST" });
+    await refreshState();
+  });
+
+  ui.pairLeftBtn.addEventListener("click", () => pairSide("left"));
+  ui.pairRightBtn.addEventListener("click", () => pairSide("right"));
+
+  ui.autoConnectToggle.addEventListener("change", async () => {
+    await api("/api/autoconnect", { method: "POST", body: { enabled: ui.autoConnectToggle.checked } });
+    await refreshConfig();
     await refreshState();
   });
 

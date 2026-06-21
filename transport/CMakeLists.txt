@@ -23,10 +23,22 @@ target_include_directories(joycon_transport
 target_link_libraries(joycon_transport
   PUBLIC
     windowsapp
+  PRIVATE
+    bcrypt
 )
 
 if(MSVC)
   target_compile_options(joycon_transport PRIVATE /W4 /permissive-)
 else()
   target_compile_options(joycon_transport PRIVATE -Wall -Wextra -pedantic)
+endif()
+
+option(JOYCON2CPP_BUILD_TRANSPORT_TOOLS "Build transport experiment/diagnostic tools" ON)
+
+if(JOYCON2CPP_BUILD_TRANSPORT_TOOLS)
+  add_executable(jc2_pairing_lab tools/jc2_pairing_lab.cpp)
+  target_link_libraries(jc2_pairing_lab PRIVATE joycon_transport windowsapp bcrypt)
+  if(MSVC)
+    target_compile_options(jc2_pairing_lab PRIVATE /W4 /permissive-)
+  endif()
 endif()

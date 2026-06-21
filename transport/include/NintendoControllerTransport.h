@@ -2,10 +2,12 @@
 
 #include "JoyconTypes.h"
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -42,6 +44,24 @@ struct DeviceConfiguration {
     bool playConnectionRumble = false;
 };
 
+/// Result of a Nintendo OOB pairing operation (command 0x15 + 0x03/07,09).
+/// The controller persists the host address + LTK in its own pairing table;
+/// the transport layer performs no host-side persistence. Callers decide what
+/// (if anything) to store, e.g. `hostAddress` to later detect an invalidated
+/// pairing when the local Bluetooth radio changes.
+struct PairingResult {
+    uint64_t hostAddress = 0;          ///< host (PC) BT address registered into the controller
+    uint64_t controllerAddress = 0;    ///< controller BT address reported during the exchange
+    std::array<uint8_t, 16> ltk{};     ///< derived link key (A1 ^ B1)
+    bool deviceKeyMatchedKnown = false; ///< controller public key B1 matched the known fixed value
+    bool challengeVerified = false;     ///< AES128-ECB(LTK, challenge) matched the controller response
+};
+
+/// Read the local (host) Bluetooth adapter address. Returns std::nullopt when
+/// no default adapter is available. Stateless: the caller is responsible for any
+/// comparison/persistence (e.g. detecting that a stored pairing became invalid).
+std::optional<uint64_t> GetHostBluetoothAddress();
+
 class ControllerConnection {
 public:
     ControllerConnection();
@@ -61,6 +81,12 @@ public:
     void SetPlayerLights(uint8_t pattern) const;
     void EmitDefaultRumble() const;
 
+    /// Run Nintendo's Out-Of-Band pairing so this host (PC) is stored in the
+    /// controller's pairing table, enabling button-wake reconnection to the PC.
+    /// The controller must already be connected (typically via open/sync mode).
+    /// Returns false and sets `error` on failure. No host-side state is persisted.
+    bool PairToHost(uint64_t hostAddress, PairingResult& result, std::string& error) const;
+
     bool StartInputStream(const RawPacketCallback& callback) const;
     void StopInputStream() const;
     void SetConnectionStatusCallback(const ConnectionStatusCallback& callback) const;
@@ -79,6 +105,7 @@ private:
     friend ControllerConnection ConnectMatchingControllerImpl(
         std::wstring_view prompt,
         const ConnectionOptions& options,
+        ControllerType expectedAdvertisedType,
         const std::function<bool(const ControllerInfo&)>& matcher);
 };
 

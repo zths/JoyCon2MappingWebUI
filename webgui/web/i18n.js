@@ -34,7 +34,18 @@
       },
       button: {
         connect: "连接",
-        disconnect: "断开"
+        disconnect: "断开",
+        pair: "配对到此 PC"
+      },
+      pairing: {
+        autoConnect: "启动后自动连接已配对手柄",
+        notPaired: "未配对",
+        pairedValid: "已配对到本机（按任意键即可重连）",
+        pairedInvalid: "已配对，但本机蓝牙地址已变化，需重新配对",
+        hostAddress: "本机蓝牙：{mac}",
+        pairing: "正在配对…（请保持手柄连接）",
+        pairSuccess: "配对成功，之后按任意键即可自动连接",
+        pairFailed: "配对失败：{detail}"
       },
       section: {
         interactiveMapping: "交互式映射",
@@ -269,7 +280,18 @@
       },
       button: {
         connect: "Connect",
-        disconnect: "Disconnect"
+        disconnect: "Disconnect",
+        pair: "Pair to this PC"
+      },
+      pairing: {
+        autoConnect: "Auto-connect paired controllers on launch",
+        notPaired: "Not paired",
+        pairedValid: "Paired to this PC (press any button to reconnect)",
+        pairedInvalid: "Paired, but this PC's Bluetooth address changed — re-pair needed",
+        hostAddress: "This PC Bluetooth: {mac}",
+        pairing: "Pairing… (keep the controller connected)",
+        pairSuccess: "Paired. Press any button to auto-connect next time.",
+        pairFailed: "Pairing failed: {detail}"
       },
       section: {
         interactiveMapping: "Interactive Mapping",

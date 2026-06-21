@@ -1433,3 +1433,37 @@ button.hotspot {
   background: transparent;
 }
 
+.pairing-status {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+}
+
+.pairing-status.pairing-invalid {
+  color: #fca5a5;
+}
+
+.autoconnect-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.autoconnect-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.autoconnect-toggle input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+

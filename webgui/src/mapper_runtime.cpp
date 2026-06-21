@@ -312,9 +312,11 @@ MapperRuntime::MapperRuntime(std::shared_ptr<IOutputSink> outputSink)
     leftSlot_.side = JoyConSide::Left;
     rightSlot_.side = JoyConSide::Right;
     StartMouseOutputThread();
+    StartAutoConnectThread();
 }
 
 MapperRuntime::~MapperRuntime() {
+    StopAutoConnectThread();
     DisconnectSide(JoyConSide::Left);
     DisconnectSide(JoyConSide::Right);
     StopMouseOutputThread();
@@ -334,7 +336,7 @@ AppConfig MapperRuntime::CurrentConfig() const {
     return config_;
 }
 
-bool MapperRuntime::ConnectSide(JoyConSide side, std::string& errorMessage) {
+bool MapperRuntime::ConnectSide(JoyConSide side, std::string& errorMessage, std::chrono::seconds scanTimeout) {
     try {
         winrt::init_apartment();
     } catch (...) {
@@ -360,6 +362,7 @@ bool MapperRuntime::ConnectSide(JoyConSide side, std::string& errorMessage) {
 
     try {
         transport::ConnectionOptions connectionOptions;
+        connectionOptions.timeout = scanTimeout;
         auto connection = transport::ConnectJoyCon(
             side,
             side == JoyConSide::Left
@@ -462,7 +465,104 @@ RuntimeSnapshot MapperRuntime::Snapshot() const {
         .left = SnapshotFromSlot(leftSlot_),
         .right = SnapshotFromSlot(rightSlot_),
         .mouseStats = mouseSnapshot,
+        .hostBluetoothAddress = transport::GetHostBluetoothAddress().value_or(0),
     };
+}
+
+bool MapperRuntime::PairSide(JoyConSide side, std::string& errorMessage) {
+    const auto hostAddress = transport::GetHostBluetoothAddress();
+    if (!hostAddress) {
+        errorMessage = "No local Bluetooth adapter is available.";
+        return false;
+    }
+
+    // Capture the live connection pointer under the lock, but run the (blocking,
+    // multi-second) BLE pairing without holding mutex_, so input notifications
+    // are not starved while we wait for command responses.
+    transport::ControllerConnection* connection = nullptr;
+    {
+        std::scoped_lock lock(mutex_);
+        auto& slot = (side == JoyConSide::Left) ? leftSlot_ : rightSlot_;
+        if (!slot.connection || slot.status != ConnectionStatus::Connected) {
+            errorMessage = "Controller is not connected. Connect it first (hold SYNC).";
+            return false;
+        }
+        connection = slot.connection.get();
+    }
+
+    transport::PairingResult result;
+    std::string pairError;
+    const bool ok = connection->PairToHost(*hostAddress, result, pairError);
+    if (!ok) {
+        errorMessage = pairError.empty() ? "Pairing failed." : pairError;
+        return false;
+    }
+
+    std::scoped_lock lock(mutex_);
+    auto& slot = (side == JoyConSide::Left) ? leftSlot_ : rightSlot_;
+    auto& paired = (side == JoyConSide::Left) ? config_.pairing.left : config_.pairing.right;
+    paired.paired = true;
+    paired.controllerAddress = result.controllerAddress;
+    paired.hostAddress = result.hostAddress;
+    std::string narrowName;
+    narrowName.reserve(slot.deviceName.size());
+    for (wchar_t ch : slot.deviceName) {
+        narrowName.push_back((ch >= 0 && ch < 128) ? static_cast<char>(ch) : '?');
+    }
+    paired.deviceName = narrowName;
+    errorMessage.clear();
+    return true;
+}
+
+void MapperRuntime::SetAutoConnect(bool enabled) {
+    std::scoped_lock lock(mutex_);
+    config_.pairing.autoConnect = enabled;
+}
+
+void MapperRuntime::StartAutoConnectThread() {
+    autoConnectRunning_ = true;
+    autoConnectThread_ = std::thread([this]() { AutoConnectLoop(); });
+}
+
+void MapperRuntime::StopAutoConnectThread() {
+    autoConnectRunning_ = false;
+    if (autoConnectThread_.joinable()) {
+        autoConnectThread_.join();
+    }
+}
+
+void MapperRuntime::AutoConnectLoop() {
+    try {
+        winrt::init_apartment();
+    } catch (...) {
+    }
+
+    const auto eligible = [this](JoyConSide side) {
+        std::scoped_lock lock(mutex_);
+        if (!config_.pairing.autoConnect) {
+            return false;
+        }
+        const auto& slot = (side == JoyConSide::Left) ? leftSlot_ : rightSlot_;
+        const auto& paired = (side == JoyConSide::Left) ? config_.pairing.left : config_.pairing.right;
+        return paired.paired && slot.status == ConnectionStatus::Disconnected;
+    };
+
+    while (autoConnectRunning_) {
+        // Attempt one disconnected, paired side per pass with a short scan window.
+        // A paired controller (re)advertises to this PC on any button press.
+        if (eligible(JoyConSide::Left)) {
+            std::string error;
+            ConnectSide(JoyConSide::Left, error, std::chrono::seconds(8));
+        }
+        if (autoConnectRunning_ && eligible(JoyConSide::Right)) {
+            std::string error;
+            ConnectSide(JoyConSide::Right, error, std::chrono::seconds(8));
+        }
+
+        for (int i = 0; i < 12 && autoConnectRunning_; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
 }
 
 void MapperRuntime::StartMouseOutputThread() {

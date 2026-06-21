@@ -1,11 +1,74 @@
 #include "config_json.h"
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstdio>
+#include <string>
 
 namespace joycon::webgui {
 namespace {
 
 using json = nlohmann::json;
+
+/// Format a 48-bit BT address as "AA:BB:CC:DD:EE:FF" (big-endian); empty if 0.
+std::string FormatMacAddress(uint64_t address) {
+    if (address == 0) {
+        return "";
+    }
+    char buffer[18];
+    std::snprintf(buffer, sizeof(buffer), "%02X:%02X:%02X:%02X:%02X:%02X",
+        static_cast<unsigned>((address >> 40) & 0xFF),
+        static_cast<unsigned>((address >> 32) & 0xFF),
+        static_cast<unsigned>((address >> 24) & 0xFF),
+        static_cast<unsigned>((address >> 16) & 0xFF),
+        static_cast<unsigned>((address >> 8) & 0xFF),
+        static_cast<unsigned>(address & 0xFF));
+    return buffer;
+}
+
+/// Parse "AA:BB:CC:DD:EE:FF" (any non-hex separators tolerated) into a uint64; 0 if invalid.
+uint64_t ParseMacAddress(const std::string& text) {
+    uint64_t address = 0;
+    int nibbles = 0;
+    for (char ch : text) {
+        int value = -1;
+        if (ch >= '0' && ch <= '9') value = ch - '0';
+        else if (ch >= 'a' && ch <= 'f') value = ch - 'a' + 10;
+        else if (ch >= 'A' && ch <= 'F') value = ch - 'A' + 10;
+        else continue;
+        address = (address << 4) | static_cast<uint64_t>(value);
+        if (++nibbles > 12) {
+            return 0;
+        }
+    }
+    return nibbles == 12 ? address : 0;
+}
+
+json PairedDeviceToJson(const PairedDevice& device) {
+    return json{
+        { "paired", device.paired },
+        { "controllerAddress", FormatMacAddress(device.controllerAddress) },
+        { "hostAddress", FormatMacAddress(device.hostAddress) },
+        { "deviceName", device.deviceName }
+    };
+}
+
+PairedDevice PairedDeviceFromJson(const json& value, const PairedDevice& fallback) {
+    PairedDevice device = fallback;
+    if (!value.is_object()) {
+        return device;
+    }
+    device.paired = value.value("paired", device.paired);
+    device.deviceName = value.value("deviceName", device.deviceName);
+    if (value.contains("controllerAddress")) {
+        device.controllerAddress = ParseMacAddress(value.value("controllerAddress", std::string()));
+    }
+    if (value.contains("hostAddress")) {
+        device.hostAddress = ParseMacAddress(value.value("hostAddress", std::string()));
+    }
+    return device;
+}
 
 /// Coarse UI % from reported pack mV (not coulomb-count SoC; load / charge / temperature skew terminal voltage).
 ///
@@ -215,6 +278,11 @@ json ConfigToJson(const AppConfig& config) {
         } },
         { "server", {
             { "port", config.server.port }
+        } },
+        { "pairing", {
+            { "autoConnect", config.pairing.autoConnect },
+            { "left", PairedDeviceToJson(config.pairing.left) },
+            { "right", PairedDeviceToJson(config.pairing.right) }
         } }
     };
 }
@@ -250,13 +318,38 @@ void UpdateConfigFromJson(const json& root, AppConfig& config) {
     if (const auto serverIt = root.find("server"); serverIt != root.end() && serverIt->is_object()) {
         config.server.port = NormalizePort(serverIt->value("port", static_cast<int>(config.server.port)), config.server.port);
     }
+
+    if (const auto pairingIt = root.find("pairing"); pairingIt != root.end() && pairingIt->is_object()) {
+        config.pairing.autoConnect = pairingIt->value("autoConnect", config.pairing.autoConnect);
+        config.pairing.left = PairedDeviceFromJson(pairingIt->value("left", json::object()), config.pairing.left);
+        config.pairing.right = PairedDeviceFromJson(pairingIt->value("right", json::object()), config.pairing.right);
+    }
 }
 
 json RuntimeSnapshotToJson(const RuntimeSnapshot& snapshot) {
+    const auto pairedToJson = [&](const PairedDevice& device) {
+        const bool valid = device.paired
+            && device.hostAddress != 0
+            && device.hostAddress == snapshot.hostBluetoothAddress;
+        return json{
+            { "paired", device.paired },
+            { "valid", valid },
+            { "deviceName", device.deviceName },
+            { "controllerAddress", FormatMacAddress(device.controllerAddress) },
+            { "hostAddress", FormatMacAddress(device.hostAddress) }
+        };
+    };
+
     return json{
         { "ok", true },
         { "left", ControllerStateToJson(snapshot.left) },
         { "right", ControllerStateToJson(snapshot.right) },
+        { "pairing", {
+            { "autoConnect", snapshot.config.pairing.autoConnect },
+            { "hostAddress", FormatMacAddress(snapshot.hostBluetoothAddress) },
+            { "left", pairedToJson(snapshot.config.pairing.left) },
+            { "right", pairedToJson(snapshot.config.pairing.right) }
+        } },
         { "mouseStats", {
             { "movedPackets", snapshot.mouseStats.movedPackets },
             { "injectedMoves", snapshot.mouseStats.injectedMoves },

@@ -59,7 +59,9 @@
               <div class="actions">
                 <button id="connectLeftBtn" data-i18n="button.connect">连接</button>
                 <button id="disconnectLeftBtn" data-i18n="button.disconnect">断开</button>
+                <button id="pairLeftBtn" data-i18n="button.pair">配对到此 PC</button>
               </div>
+              <p id="leftPairing" class="pairing-status muted"></p>
             </div>
             <div class="device-card">
               <h3 data-i18n="device.right">右 Joy-Con 2</h3>
@@ -71,8 +73,17 @@
               <div class="actions">
                 <button id="connectRightBtn" data-i18n="button.connect">连接</button>
                 <button id="disconnectRightBtn" data-i18n="button.disconnect">断开</button>
+                <button id="pairRightBtn" data-i18n="button.pair">配对到此 PC</button>
               </div>
+              <p id="rightPairing" class="pairing-status muted"></p>
             </div>
+          </div>
+          <div class="autoconnect-row">
+            <label class="autoconnect-toggle">
+              <input id="autoConnectToggle" type="checkbox" />
+              <span data-i18n="pairing.autoConnect">启动后自动连接已配对手柄</span>
+            </label>
+            <span id="hostAddress" class="muted"></span>
           </div>
         </section>
 

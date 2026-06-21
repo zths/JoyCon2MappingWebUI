@@ -267,6 +267,35 @@ void ControlApiServer::HandleClient(uintptr_t clientSocketValue) {
     } else if (method == "POST" && path == "/api/disconnect/right") {
         runtime_.DisconnectSide(JoyConSide::Right);
         response.body = json{ { "ok", true } }.dump();
+    } else if (method == "POST" && (path == "/api/pair/left" || path == "/api/pair/right")) {
+        const JoyConSide side = (path == "/api/pair/left") ? JoyConSide::Left : JoyConSide::Right;
+        std::string error;
+        const bool ok = runtime_.PairSide(side, error);
+        if (ok) {
+            std::string saveError;
+            if (!configStore_.Save(runtime_.CurrentConfig(), saveError)) {
+                response.body = json{ { "ok", true }, { "warning", saveError } }.dump();
+            } else {
+                response.body = json{ { "ok", true } }.dump();
+            }
+        } else {
+            response.body = json{ { "ok", false }, { "error", error } }.dump();
+        }
+    } else if (method == "POST" && path == "/api/autoconnect") {
+        json requestBody;
+        if (!TryParseJsonBody(body, response, requestBody)) {
+            SendResponse(client, response);
+            closesocket(client);
+            return;
+        }
+        const bool enabled = requestBody.value("enabled", false);
+        runtime_.SetAutoConnect(enabled);
+        std::string saveError;
+        if (!configStore_.Save(runtime_.CurrentConfig(), saveError)) {
+            response.body = json{ { "ok", true }, { "warning", saveError } }.dump();
+        } else {
+            response.body = json{ { "ok", true } }.dump();
+        }
     } else if (method == "POST" && path == "/api/config/replace") {
         json requestBody;
         if (!TryParseJsonBody(body, response, requestBody)) {
